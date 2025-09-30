@@ -45,55 +45,31 @@ const Admin = () => {
         setFilteredUsers(usersData);
       } catch (error) {
         console.error('Failed to fetch admin data:', error);
-        // Set mock data for demo
+        // Show error state instead of mock data
         setSystemStatus({
-          status: 'healthy',
-          version: '1.0.0',
-          uptime: '72h 15m 30s',
-          active_users: 156,
-          database_status: 'connected',
-          redis_status: 'connected',
-          ai_models_loaded: true,
-          last_updated: new Date().toISOString()
+          status: 'error',
+          version: 'unknown',
+          uptime: '0h 0m 0s',
+          active_users: 0,
+          database_status: 'disconnected',
+          redis_status: 'disconnected',
+          ai_models_loaded: false,
+          last_updated: new Date().toISOString(),
+          error: 'Failed to connect to backend'
         });
-        
-        const mockUsers = [
-          {
-            id: '1',
-            email: 'john.doe@example.com',
-            name: 'John Doe',
-            role: 'tourist',
-            is_active: true,
-            last_seen: '2025-09-29T10:20:00Z',
-            created_at: '2025-09-20T10:20:00Z'
-          },
-          {
-            id: '2',
-            email: 'officer.smith@police.com',
-            name: 'Officer Smith',
-            role: 'authority',
-            is_active: true,
-            last_seen: '2025-09-29T09:45:00Z',
-            created_at: '2025-09-15T10:20:00Z'
-          },
-          {
-            id: '3',
-            email: 'admin@safehorizon.com',
-            name: 'System Admin',
-            role: 'admin',
-            is_active: true,
-            last_seen: '2025-09-29T10:30:00Z',
-            created_at: '2025-09-01T10:20:00Z'
-          }
-        ];
-        setUsers(mockUsers);
-        setFilteredUsers(mockUsers);
+        setUsers([]);
+        setFilteredUsers([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchAdminData();
+    
+    // Set up periodic refresh for admin data (every 30 seconds)
+    const refreshInterval = setInterval(fetchAdminData, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   useEffect(() => {

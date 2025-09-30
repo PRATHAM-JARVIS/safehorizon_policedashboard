@@ -15,31 +15,6 @@ export const useAuthStore = create(
       login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
-          // Demo credentials for testing without backend
-          if (email === 'demo@police.com' && password === 'demo123') {
-            const mockResponse = {
-              access_token: 'demo_token_' + Date.now(),
-              user_id: 'demo_user',
-              email: 'demo@police.com',
-              role: 'authority'
-            };
-            
-            const userData = { user_id: mockResponse.user_id, email: mockResponse.email, role: mockResponse.role };
-            
-            tokenManager.setToken(mockResponse.access_token);
-            tokenManager.setUser(userData);
-            
-            set({
-              user: userData,
-              token: mockResponse.access_token,
-              isAuthenticated: true,
-              isLoading: false,
-              error: null,
-            });
-            
-            return mockResponse;
-          }
-          
           const response = await authAPI.loginAuthority(email, password);
           
           const { access_token, user_id, email: userEmail, role } = response;

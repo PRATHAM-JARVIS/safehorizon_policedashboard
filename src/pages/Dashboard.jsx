@@ -7,6 +7,7 @@ import { touristAPI, alertsAPI, zonesAPI } from '../api/services.js';
 import { useAppStore } from '../store/appStore.js';
 import MapComponent from '../components/ui/Map.jsx';
 import AlertDetailModal from '../components/ui/AlertDetailModal.jsx';
+import { LoadingSpinner, ErrorState, ConnectionStatus, RealTimeIndicator } from '../components/ui/StatusComponents.jsx';
 import {
   Users,
   AlertTriangle,
@@ -32,24 +33,28 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
   const { openModal } = useAppStore();
 
   // WebSocket for real-time alerts
   const { lastMessage, readyState } = useWebSocket(
-    `${import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000/ws'}/alerts/subscribe`,
+    'authority-alerts', // This will be converted to the correct URL in the hook
     {
-    onMessage: (alert) => {
-      console.log('New alert received:', alert);
-      setRecentAlerts(prev => [alert, ...prev.slice(0, 9)]);
-      
-      // Update stats
-      setStats(prev => ({
-        ...prev,
-        alertsToday: prev.alertsToday + 1,
-        sosCount: alert.type === 'sos' ? prev.sosCount + 1 : prev.sosCount,
-      }));
+      onMessage: (alert) => {
+        console.log('New alert received:', alert);
+        setRecentAlerts(prev => [alert, ...prev.slice(0, 9)]);
+        
+        // Update stats
+        setStats(prev => ({
+          ...prev,
+          alertsToday: prev.alertsToday + 1,
+          sosCount: alert.type === 'sos' ? prev.sosCount + 1 : prev.sosCount,
+        }));
+      },
+      filters: { severity: 'high' } // Only get high and critical alerts in real-time
     }
-  });
+  );
 
   // Handle incoming WebSocket messages
   useEffect(() => {
@@ -58,25 +63,25 @@ const Dashboard = () => {
     }
   }, [lastMessage]);
 
-  // Enhanced chart data with more realistic metrics
+  // Chart data will come from API in production
   const alertsChartData = [
-    { name: 'Mon', alerts: 12, resolved: 10, sos: 2, geofence: 5, anomaly: 5 },
-    { name: 'Tue', alerts: 19, resolved: 16, sos: 1, geofence: 8, anomaly: 10 },
-    { name: 'Wed', alerts: 8, resolved: 8, sos: 0, geofence: 3, anomaly: 5 },
-    { name: 'Thu', alerts: 15, resolved: 13, sos: 3, geofence: 6, anomaly: 6 },
-    { name: 'Fri', alerts: 23, resolved: 20, sos: 2, geofence: 12, anomaly: 9 },
-    { name: 'Sat', alerts: 18, resolved: 15, sos: 1, geofence: 9, anomaly: 8 },
-    { name: 'Sun', alerts: 14, resolved: 12, sos: 1, geofence: 7, anomaly: 6 },
+    { name: 'Mon', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
+    { name: 'Tue', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
+    { name: 'Wed', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
+    { name: 'Thu', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
+    { name: 'Fri', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
+    { name: 'Sat', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
+    { name: 'Sun', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
   ];
 
   const safetyScoreData = [
-    { score: '90-100', count: 45, color: '#10b981' },
-    { score: '80-89', count: 32, color: '#22c55e' },
-    { score: '70-79', count: 28, color: '#84cc16' },
-    { score: '60-69', count: 21, color: '#eab308' },
-    { score: '50-59', count: 18, color: '#f59e0b' },
-    { score: '40-49', count: 12, color: '#ef4444' },
-    { score: '<40', count: 8, color: '#dc2626' },
+    { score: '90-100', count: 0, color: '#10b981' },
+    { score: '80-89', count: 0, color: '#22c55e' },
+    { score: '70-79', count: 0, color: '#84cc16' },
+    { score: '60-69', count: 0, color: '#eab308' },
+    { score: '50-59', count: 0, color: '#f59e0b' },
+    { score: '40-49', count: 0, color: '#ef4444' },
+    { score: '<40', count: 0, color: '#dc2626' },
   ];
 
   useEffect(() => {
@@ -87,8 +92,8 @@ const Dashboard = () => {
         // Fetch active tourists
         const tourists = await touristAPI.getActiveTourists();
         
-        // Fetch recent alerts
-        const alerts = await alertsAPI.getRecentAlerts({ limit: 10 });
+        // Fetch recent alerts (last 24 hours)
+        const alerts = await alertsAPI.getRecentAlerts({ hours: 24 });
         
         // Fetch zones
         const zonesData = await zonesAPI.listZones();
@@ -107,110 +112,32 @@ const Dashboard = () => {
         setRecentAlerts(alerts);
         setTourists(tourists);
         setZones(zonesData);
+        setError(null);
+        setLastUpdate(new Date().toISOString());
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
-        // Set mock data when API fails
+        setError(error);
+        // Show user-friendly error message
         setStats({
-          activeTourists: 156,
-          alertsToday: 23,
-          sosCount: 3,
-          tripsInProgress: 89,
+          activeTourists: 0,
+          alertsToday: 0,
+          sosCount: 0,
+          tripsInProgress: 0,
         });
-        
-        const mockAlerts = [
-          {
-            id: 1,
-            tourist_name: 'John Doe',
-            type: 'sos',
-            severity: 'critical',
-            title: 'Emergency SOS Alert',
-            description: 'Tourist triggered emergency SOS',
-            location: 'Downtown District',
-            created_at: new Date().toISOString(),
-            is_acknowledged: false,
-            is_resolved: false
-          },
-          {
-            id: 2,
-            tourist_name: 'Jane Smith',
-            type: 'geofence',
-            severity: 'high',
-            title: 'Restricted Zone Entry',
-            description: 'Tourist entered restricted area',
-            location: 'Government Quarter',
-            created_at: new Date(Date.now() - 300000).toISOString(),
-            is_acknowledged: true,
-            is_resolved: false
-          },
-          {
-            id: 3,
-            tourist_name: 'Mike Johnson',
-            type: 'anomaly',
-            severity: 'medium',
-            title: 'Unusual Activity',
-            description: 'Anomalous movement pattern detected',
-            location: 'Tourist District',
-            created_at: new Date(Date.now() - 600000).toISOString(),
-            is_acknowledged: true,
-            is_resolved: true
-          }
-        ];
-        setRecentAlerts(mockAlerts);
-        setTourists([
-          {
-            id: '1',
-            name: 'John Doe',
-            current_location: { lat: 35.6762, lon: 139.6503, address: 'Shibuya, Tokyo' },
-            safety_score: 85,
-            last_seen: new Date().toISOString()
-          },
-          {
-            id: '2',
-            name: 'Jane Smith',
-            current_location: { lat: 35.6763, lon: 139.6504, address: 'Harajuku, Tokyo' },
-            safety_score: 45,
-            last_seen: new Date().toISOString()
-          },
-          {
-            id: '3',
-            name: 'Mike Johnson',
-            current_location: { lat: 35.6764, lon: 139.6505, address: 'Akihabara, Tokyo' },
-            safety_score: 92,
-            last_seen: new Date().toISOString()
-          }
-        ]);
-        setZones([
-          {
-            id: '1',
-            name: 'Government District',
-            zone_type: 'restricted',
-            description: 'Government buildings and restricted areas',
-            coordinates: [
-              [35.6750, 139.6490],
-              [35.6760, 139.6490],
-              [35.6760, 139.6510],
-              [35.6750, 139.6510]
-            ]
-          },
-          {
-            id: '2',
-            name: 'Tourist Safe Zone',
-            zone_type: 'safe',
-            description: 'Well-monitored tourist areas',
-            coordinates: [
-              [35.6770, 139.6520],
-              [35.6780, 139.6520],
-              [35.6780, 139.6540],
-              [35.6770, 139.6540]
-            ]
-          }
-        ]);
+        setRecentAlerts([]);
+        setTourists([]);
+        setZones([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchDashboardData();
+    
+    // Set up periodic refresh for dashboard data (every 30 seconds)
+    const refreshInterval = setInterval(fetchDashboardData, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const StatCard = (props) => {
@@ -257,7 +184,7 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Status */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -265,17 +192,27 @@ const Dashboard = () => {
             Real-time monitoring of tourist safety and system alerts
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
-            readyState === 1 
-              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' 
-              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${readyState === 1 ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span>{readyState === 1 ? 'Live Updates' : 'Disconnected'}</span>
-          </div>
+        <div className="flex items-center gap-4">
+          <ConnectionStatus isConnected={readyState === 1} lastUpdate={lastUpdate} />
+          <RealTimeIndicator isLive={readyState === 1} />
         </div>
       </div>
+
+      {/* Error State */}
+      {error && !loading && (
+        <ErrorState 
+          error={error} 
+          onRetry={() => window.location.reload()} 
+          title="Dashboard Connection Error"
+        />
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <LoadingSpinner size="large" />
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

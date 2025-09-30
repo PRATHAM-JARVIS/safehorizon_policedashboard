@@ -108,12 +108,6 @@ const Login = () => {
           <div className="mt-6 text-center text-sm text-muted-foreground">
             <p>Authorized personnel only</p>
             <p className="mt-1">Contact IT support for account assistance</p>
-            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
-              <p className="text-blue-800 dark:text-blue-200 font-medium">Demo Access:</p>
-              <p className="text-blue-700 dark:text-blue-300 text-xs">
-                Email: demo@police.com | Password: demo123
-              </p>
-            </div>
           </div>
         </CardContent>
       </Card>

@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/badge.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table.jsx';
 import { touristAPI } from '../api/services.js';
 import { formatDateTime, formatTimeAgo, getSafetyScoreColor, getSafetyScoreLabel } from '../utils/helpers.js';
+import { LoadingSpinner, ErrorState, RealTimeIndicator } from '../components/ui/StatusComponents.jsx';
 import {
   ArrowLeft,
   User,
@@ -26,17 +27,22 @@ const TouristDetail = () => {
   const [locations, setLocations] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
 
   useEffect(() => {
     const fetchTouristData = async () => {
       try {
         setLoading(true);
         const data = await touristAPI.trackTourist(id);
-        setTourist(data.tourist);
+        setTourist(data.tourist || data);
         setLocations(data.locations || []);
         setAlerts(data.recent_alerts || []);
+        setError(null);
+        setLastUpdate(new Date().toISOString());
       } catch (error) {
         console.error('Failed to fetch tourist data:', error);
+        setError(error);
       } finally {
         setLoading(false);
       }
@@ -44,14 +50,29 @@ const TouristDetail = () => {
 
     if (id) {
       fetchTouristData();
+      
+      // Set up periodic refresh for real-time tracking (every 10 seconds)
+      const refreshInterval = setInterval(fetchTouristData, 10000);
+      
+      return () => clearInterval(refreshInterval);
     }
   }, [id]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <div className="flex justify-center items-center py-12">
+        <LoadingSpinner size="large" />
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <ErrorState 
+        error={error} 
+        onRetry={() => window.location.reload()} 
+        title="Failed to Load Tourist Data"
+      />
     );
   }
 

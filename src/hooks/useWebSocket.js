@@ -12,20 +12,24 @@ export const useWebSocket = (url, options = {}) => {
 
   const connect = useCallback(() => {
     try {
-      const token = localStorage.getItem('safehorizon_auth_token');
-      if (!token) {
-        setError('No authentication token available');
-        return;
-      }
+      // For authority dashboard, use the correct WebSocket URL format
+      const baseWsUrl = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
+      const wsUrl = `${baseWsUrl}/api/ws/alerts/authority`;
 
-      const wsUrl = `${url}?token=${encodeURIComponent(token)}`;
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         setReadyState(1);
         setError(null);
         reconnectAttemptsRef.current = 0;
-        console.log('WebSocket connected');
+        console.log('WebSocket connected to authority alerts');
+        
+        // Subscribe to alert channels
+        ws.send(JSON.stringify({
+          type: 'subscribe',
+          channel: 'alerts',
+          filters: options.filters || {}
+        }));
       };
 
       ws.onmessage = (event) => {

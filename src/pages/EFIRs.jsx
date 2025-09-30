@@ -25,52 +25,29 @@ const EFIRs = () => {
   const [selectedEfir, setSelectedEfir] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
-  // Mock E-FIR data since we don't have a specific API endpoint for listing E-FIRs
   useEffect(() => {
-    const mockEfirs = [
-      {
-        id: 'EFIR2025092901',
-        alert_id: 123,
-        tourist_name: 'John Doe',
-        incident_type: 'SOS Alert',
-        incident_details: 'Tourist triggered emergency SOS alert in downtown area',
-        location: '35.6762, 139.6503',
-        blockchain_hash: '0x1234567890abcdef1234567890abcdef12345678',
-        created_at: '2025-09-29T10:24:51.720256+00:00',
-        created_by: 'Officer Smith',
-        status: 'verified'
-      },
-      {
-        id: 'EFIR2025092902',
-        alert_id: 124,
-        tourist_name: 'Jane Smith',
-        incident_type: 'Geofence Violation',
-        incident_details: 'Tourist entered restricted zone near government buildings',
-        location: '35.6763, 139.6504',
-        blockchain_hash: '0xabcdef1234567890abcdef1234567890abcdef12',
-        created_at: '2025-09-29T08:15:30.123456+00:00',
-        created_by: 'Officer Johnson',
-        status: 'verified'
-      },
-      {
-        id: 'EFIR2025092903',
-        alert_id: 125,
-        tourist_name: 'Mike Wilson',
-        incident_type: 'Anomaly Detection',
-        incident_details: 'Unusual movement pattern detected, potential safety concern',
-        location: '35.6764, 139.6505',
-        blockchain_hash: '0x567890abcdef1234567890abcdef1234567890ab',
-        created_at: '2025-09-28T16:45:22.789012+00:00',
-        created_by: 'Officer Davis',
-        status: 'verified'
+    const fetchEFIRs = async () => {
+      try {
+        setLoading(true);
+        const data = await efirAPI.listEFIRs();
+        setEfirs(data);
+        setFilteredEfirs(data);
+      } catch (error) {
+        console.error('Failed to fetch E-FIRs:', error);
+        // Show error state - E-FIR endpoint may not be implemented yet
+        setEfirs([]);
+        setFilteredEfirs([]);
+      } finally {
+        setLoading(false);
       }
-    ];
+    };
 
-    setTimeout(() => {
-      setEfirs(mockEfirs);
-      setFilteredEfirs(mockEfirs);
-      setLoading(false);
-    }, 1000);
+    fetchEFIRs();
+    
+    // Set up periodic refresh for E-FIRs (every 30 seconds)
+    const refreshInterval = setInterval(fetchEFIRs, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   useEffect(() => {

@@ -44,73 +44,20 @@ const Zones = () => {
         setFilteredZones(data);
       } catch (error) {
         console.error('Failed to fetch zones:', error);
-        // Mock zones data with coordinates
-        const mockZones = [
-          {
-            id: '1',
-            name: 'Government District',
-            description: 'High-security government buildings and restricted areas',
-            zone_type: 'restricted',
-            coordinates: [
-              [35.6750, 139.6490],
-              [35.6760, 139.6490],
-              [35.6760, 139.6510],
-              [35.6750, 139.6510]
-            ],
-            created_at: '2025-09-20T10:00:00Z',
-            created_by: 'Admin'
-          },
-          {
-            id: '2',
-            name: 'Tourist Safe Zone',
-            description: 'Well-monitored tourist areas with good security',
-            zone_type: 'safe',
-            coordinates: [
-              [35.6770, 139.6520],
-              [35.6780, 139.6520],
-              [35.6780, 139.6540],
-              [35.6770, 139.6540]
-            ],
-            created_at: '2025-09-21T14:30:00Z',
-            created_by: 'Officer Smith'
-          },
-          {
-            id: '3',
-            name: 'Nightlife District',
-            description: 'Areas with increased risk during night hours',
-            zone_type: 'risky',
-            coordinates: [
-              [35.6785, 139.6560],
-              [35.6795, 139.6560],
-              [35.6795, 139.6580],
-              [35.6785, 139.6580]
-            ],
-            created_at: '2025-09-22T09:15:00Z',
-            created_by: 'Officer Johnson'
-          },
-          {
-            id: '4',
-            name: 'Industrial Zone',
-            description: 'Restricted industrial area with limited access',
-            zone_type: 'restricted',
-            coordinates: [
-              [35.6800, 139.6600],
-              [35.6820, 139.6600],
-              [35.6820, 139.6630],
-              [35.6800, 139.6630]
-            ],
-            created_at: '2025-09-23T16:45:00Z',
-            created_by: 'Admin'
-          }
-        ];
-        setZones(mockZones);
-        setFilteredZones(mockZones);
+        // Show error state instead of mock data
+        setZones([]);
+        setFilteredZones([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchZones();
+    
+    // Set up periodic refresh for zones (every 60 seconds - zones change less frequently)
+    const refreshInterval = setInterval(fetchZones, 60000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   useEffect(() => {
