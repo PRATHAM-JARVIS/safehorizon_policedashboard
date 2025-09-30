@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button.jsx';
 import { Input } from '../components/ui/input.jsx';
 import { Badge } from '../components/ui/badge.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table.jsx';
+import EFIRDetailModal from '../components/ui/EFIRDetailModal.jsx';
 import {
   FileText,
   Search,
@@ -21,6 +22,8 @@ const EFIRs = () => {
   const [filteredEfirs, setFilteredEfirs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedEfir, setSelectedEfir] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Mock E-FIR data since we don't have a specific API endpoint for listing E-FIRs
   useEffect(() => {
@@ -286,7 +289,14 @@ const EFIRs = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-1">
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedEfir(efir);
+                            setShowDetailModal(true);
+                          }}
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
                         
@@ -348,6 +358,16 @@ const EFIRs = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* E-FIR Detail Modal */}
+      <EFIRDetailModal
+        efir={selectedEfir}
+        isOpen={showDetailModal}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedEfir(null);
+        }}
+      />
     </div>
   );
 };

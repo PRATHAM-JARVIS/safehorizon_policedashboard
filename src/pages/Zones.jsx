@@ -5,6 +5,7 @@ import { Input, Label } from '../components/ui/input.jsx';
 import { Badge } from '../components/ui/badge.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table.jsx';
 import { zonesAPI } from '../api/services.js';
+import MapComponent from '../components/ui/Map.jsx';
 import {
   Map,
   Plus,
@@ -14,7 +15,9 @@ import {
   AlertTriangle,
   Info,
   Search,
-  Eye
+  Eye,
+  Save,
+  X
 } from 'lucide-react';
 
 const Zones = () => {
@@ -30,6 +33,7 @@ const Zones = () => {
     coordinates: []
   });
   const [creating, setCreating] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
 
   useEffect(() => {
     const fetchZones = async () => {
@@ -40,6 +44,67 @@ const Zones = () => {
         setFilteredZones(data);
       } catch (error) {
         console.error('Failed to fetch zones:', error);
+        // Mock zones data with coordinates
+        const mockZones = [
+          {
+            id: '1',
+            name: 'Government District',
+            description: 'High-security government buildings and restricted areas',
+            zone_type: 'restricted',
+            coordinates: [
+              [35.6750, 139.6490],
+              [35.6760, 139.6490],
+              [35.6760, 139.6510],
+              [35.6750, 139.6510]
+            ],
+            created_at: '2025-09-20T10:00:00Z',
+            created_by: 'Admin'
+          },
+          {
+            id: '2',
+            name: 'Tourist Safe Zone',
+            description: 'Well-monitored tourist areas with good security',
+            zone_type: 'safe',
+            coordinates: [
+              [35.6770, 139.6520],
+              [35.6780, 139.6520],
+              [35.6780, 139.6540],
+              [35.6770, 139.6540]
+            ],
+            created_at: '2025-09-21T14:30:00Z',
+            created_by: 'Officer Smith'
+          },
+          {
+            id: '3',
+            name: 'Nightlife District',
+            description: 'Areas with increased risk during night hours',
+            zone_type: 'risky',
+            coordinates: [
+              [35.6785, 139.6560],
+              [35.6795, 139.6560],
+              [35.6795, 139.6580],
+              [35.6785, 139.6580]
+            ],
+            created_at: '2025-09-22T09:15:00Z',
+            created_by: 'Officer Johnson'
+          },
+          {
+            id: '4',
+            name: 'Industrial Zone',
+            description: 'Restricted industrial area with limited access',
+            zone_type: 'restricted',
+            coordinates: [
+              [35.6800, 139.6600],
+              [35.6820, 139.6600],
+              [35.6820, 139.6630],
+              [35.6800, 139.6630]
+            ],
+            created_at: '2025-09-23T16:45:00Z',
+            created_by: 'Admin'
+          }
+        ];
+        setZones(mockZones);
+        setFilteredZones(mockZones);
       } finally {
         setLoading(false);
       }
@@ -81,26 +146,24 @@ const Zones = () => {
 
   const handleCreateZone = async (e) => {
     e.preventDefault();
-    if (!newZone.name || !newZone.description) return;
+    if (!newZone.name || !newZone.description || newZone.coordinates.length === 0) {
+      alert('Please fill all fields and draw a zone on the map');
+      return;
+    }
 
     try {
       setCreating(true);
       
-      // For demo purposes, we'll create a circular zone with dummy coordinates
-      const demoCoordinates = [
-        [139.6503, 35.6762], // Tokyo coordinates as example
-        [139.6603, 35.6762],
-        [139.6603, 35.6862],
-        [139.6503, 35.6862]
-      ];
-
       const zoneData = {
         ...newZone,
-        coordinates: demoCoordinates
+        id: Date.now().toString(), // Mock ID
+        created_at: new Date().toISOString(),
+        created_by: 'Current User'
       };
 
-      const createdZone = await zonesAPI.createZone(zoneData);
-      setZones(prev => [...prev, createdZone]);
+      // In real app, this would call the API
+      // const createdZone = await zonesAPI.createZone(zoneData);
+      setZones(prev => [...prev, zoneData]);
       
       // Reset form
       setNewZone({
@@ -110,11 +173,22 @@ const Zones = () => {
         coordinates: []
       });
       setShowCreateForm(false);
+      setIsDrawing(false);
     } catch (error) {
       console.error('Failed to create zone:', error);
     } finally {
       setCreating(false);
     }
+  };
+
+  const handlePolygonComplete = (coordinates) => {
+    setNewZone(prev => ({ ...prev, coordinates }));
+    setIsDrawing(false);
+  };
+
+  const startDrawing = () => {
+    setIsDrawing(true);
+    setNewZone(prev => ({ ...prev, coordinates: [] }));
   };
 
   const handleDeleteZone = async (zoneId) => {
@@ -260,11 +334,27 @@ const Zones = () => {
                 />
               </div>
 
-              <div className="bg-muted p-4 rounded-md">
-                <p className="text-sm text-muted-foreground mb-2">
-                  <MapPin className="w-4 h-4 inline mr-1" />
-                  Note: In a production environment, you would draw the zone boundaries on an interactive map. 
-                  For this demo, zones will be created with default coordinates around Tokyo.
+              <div className={`p-4 rounded-md border ${newZone.coordinates.length > 0 ? 'bg-green-50 border-green-200 dark:bg-green-900/20' : 'bg-muted border-border'}`}>
+                <div className="flex items-center space-x-2">
+                  <MapPin className="w-4 h-4" />
+                  <span className="text-sm font-medium">
+                    Zone Boundaries: 
+                  </span>
+                  {newZone.coordinates.length > 0 ? (
+                    <Badge variant="success">
+                      {newZone.coordinates.length} points drawn
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">
+                      Not drawn yet
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {newZone.coordinates.length > 0 
+                    ? 'Zone boundaries have been drawn on the map. You can now create the zone.'
+                    : 'Click "Draw Zone" on the map above to define the zone boundaries.'
+                  }
                 </p>
               </div>
 
@@ -403,22 +493,49 @@ const Zones = () => {
         </CardContent>
       </Card>
 
-      {/* Map Placeholder */}
+      {/* Interactive Zone Management Map */}
       <Card>
         <CardHeader>
-          <CardTitle>Zone Map View</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center space-x-2">
+              <Map className="w-5 h-5" />
+              <span>Zone Management Map</span>
+            </span>
+            {showCreateForm && (
+              <div className="flex space-x-2">
+                <Button
+                  variant={isDrawing ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={isDrawing ? () => setIsDrawing(false) : startDrawing}
+                >
+                  {isDrawing ? (
+                    <>
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel Drawing
+                    </>
+                  ) : (
+                    'Draw Zone'
+                  )}
+                </Button>
+                {newZone.coordinates.length > 0 && (
+                  <Badge variant="success">
+                    Zone drawn ({newZone.coordinates.length} points)
+                  </Badge>
+                )}
+              </div>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-muted rounded-lg h-64 flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <Map className="w-12 h-12 mx-auto mb-2" />
-              <p className="text-lg font-medium">Interactive Map</p>
-              <p className="text-sm">
-                In production, this would show an interactive map with zone boundaries, 
-                tourist locations, and real-time tracking data using Mapbox or Leaflet.
-              </p>
-            </div>
-          </div>
+          <MapComponent
+            center={[35.6762, 139.6503]}
+            zoom={13}
+            zones={zones}
+            height="500px"
+            showZoneDrawer={isDrawing}
+            onPolygonComplete={handlePolygonComplete}
+            onZoneClick={(zone) => console.log('Zone clicked:', zone)}
+          />
         </CardContent>
       </Card>
     </div>

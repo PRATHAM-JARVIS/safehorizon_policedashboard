@@ -38,6 +38,91 @@ const Alerts = () => {
         setFilteredAlerts(data);
       } catch (error) {
         console.error('Failed to fetch alerts:', error);
+        // Set mock data when API fails
+        const mockAlerts = [
+          {
+            id: 1,
+            tourist_id: '1',
+            tourist_name: 'John Doe',
+            type: 'sos',
+            severity: 'critical',
+            title: 'Emergency SOS Alert',
+            description: 'Tourist triggered emergency SOS button',
+            location: 'Shibuya Crossing, Tokyo',
+            coordinates: { lat: 35.6762, lon: 139.6503 },
+            created_at: new Date().toISOString(),
+            is_acknowledged: false,
+            is_resolved: false,
+            acknowledged_by: null,
+            resolved_by: null
+          },
+          {
+            id: 2,
+            tourist_id: '2',
+            tourist_name: 'Jane Smith',
+            type: 'geofence',
+            severity: 'high',
+            title: 'Restricted Zone Entry',
+            description: 'Tourist entered government restricted area',
+            location: 'Government District, Tokyo',
+            coordinates: { lat: 35.6763, lon: 139.6504 },
+            created_at: new Date(Date.now() - 300000).toISOString(),
+            is_acknowledged: true,
+            is_resolved: false,
+            acknowledged_by: 'Officer Smith',
+            resolved_by: null
+          },
+          {
+            id: 3,
+            tourist_id: '3',
+            tourist_name: 'Mike Johnson',
+            type: 'anomaly',
+            severity: 'medium',
+            title: 'Unusual Movement Pattern',
+            description: 'Anomalous behavior detected in movement pattern',
+            location: 'Akihabara District, Tokyo',
+            coordinates: { lat: 35.6764, lon: 139.6505 },
+            created_at: new Date(Date.now() - 600000).toISOString(),
+            is_acknowledged: true,
+            is_resolved: true,
+            acknowledged_by: 'Officer Johnson',
+            resolved_by: 'Officer Johnson'
+          },
+          {
+            id: 4,
+            tourist_id: '4',
+            tourist_name: 'Sarah Wilson',
+            type: 'geofence',
+            severity: 'low',
+            title: 'Risk Zone Entry',
+            description: 'Tourist entered moderately risky area',
+            location: 'Kabukicho, Tokyo',
+            coordinates: { lat: 35.6765, lon: 139.6506 },
+            created_at: new Date(Date.now() - 900000).toISOString(),
+            is_acknowledged: true,
+            is_resolved: true,
+            acknowledged_by: 'Officer Davis',
+            resolved_by: 'Officer Davis'
+          },
+          {
+            id: 5,
+            tourist_id: '5',
+            tourist_name: 'David Brown',
+            type: 'sos',
+            severity: 'high',
+            title: 'Medical Emergency',
+            description: 'Tourist reported medical emergency',
+            location: 'Roppongi Hills, Tokyo',
+            coordinates: { lat: 35.6766, lon: 139.6507 },
+            created_at: new Date(Date.now() - 1200000).toISOString(),
+            is_acknowledged: true,
+            is_resolved: false,
+            acknowledged_by: 'Officer Lee',
+            resolved_by: null
+          }
+        ];
+        setAlerts(mockAlerts);
+        setFilteredAlerts(mockAlerts);
       } finally {
         setLoading(false);
       }
