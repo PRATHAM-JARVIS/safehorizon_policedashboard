@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input.jsx';
 import { Badge } from '../components/ui/badge.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table.jsx';
 import { alertsAPI, efirAPI } from '../api/services.js';
-import { useAppStore } from '../store/appStore.js';
+import AlertDetailModal from '../components/ui/AlertDetailModal.jsx';
 import {
   AlertTriangle,
   Search,
@@ -27,18 +27,22 @@ const Alerts = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-  const { openModal } = useAppStore();
+  const [selectedAlert, setSelectedAlert] = useState(null);
+  const [showAlertModal, setShowAlertModal] = useState(false);
 
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
         setLoading(true);
-        const data = await alertsAPI.getRecentAlerts({ hours: 168 }); // Last 7 days
-        setAlerts(data);
-        setFilteredAlerts(data);
+        const response = await alertsAPI.getRecentAlerts({ hours: 168 }); // Last 7 days
+        // Handle different response structures
+        const data = response.alerts || response.data || response || [];
+        const alertsList = Array.isArray(data) ? data : [];
+        setAlerts(alertsList);
+        setFilteredAlerts(alertsList);
       } catch (error) {
         console.error('Failed to fetch alerts:', error);
-        // Show error state instead of mock data
+        // Show error state
         setAlerts([]);
         setFilteredAlerts([]);
       } finally {
@@ -106,7 +110,14 @@ const Alerts = () => {
 
   const handleAcknowledge = async (alertId) => {
     try {
-      await alertsAPI.acknowledgeIncident(alertId, 'Alert acknowledged from dashboard');
+      // Try new endpoint first, fallback to legacy if needed
+      try {
+        await alertsAPI.acknowledgeAlert(alertId, 'Alert acknowledged from dashboard');
+      } catch {
+        // Fallback to legacy endpoint
+        await alertsAPI.acknowledgeIncident(alertId, 'Alert acknowledged from dashboard');
+      }
+      
       setAlerts(prev => prev.map(alert => 
         alert.id === alertId 
           ? { ...alert, is_acknowledged: true }
@@ -114,12 +125,19 @@ const Alerts = () => {
       ));
     } catch (error) {
       console.error('Failed to acknowledge alert:', error);
+      alert('Failed to acknowledge alert. Please try again.');
     }
   };
 
   const handleResolve = async (alertId) => {
     try {
-      await alertsAPI.closeIncident(alertId, 'Incident resolved from dashboard');
+      // Use the updated closeIncident endpoint with proper parameters
+      await alertsAPI.closeIncident(
+        alertId,  // incident_id
+        'Incident resolved from dashboard', // resolution_notes
+        'resolved' // status
+      );
+      
       setAlerts(prev => prev.map(alert => 
         alert.id === alertId 
           ? { ...alert, is_resolved: true }
@@ -127,20 +145,32 @@ const Alerts = () => {
       ));
     } catch (error) {
       console.error('Failed to resolve alert:', error);
+      alert('Failed to resolve alert. Please try again.');
     }
   };
 
   const handleGenerateEFIR = async (alert) => {
     try {
-      const efir = await efirAPI.generateEFIR(
-        alert.id,
-        `Alert: ${alert.title || alert.type} - ${alert.description}`,
-        alert.location ? `${alert.location.lat}, ${alert.location.lon}` : 'Unknown location'
-      );
+      // Match API.md format for E-FIR generation
+      const efirData = {
+        alert_id: alert.id,
+        tourist_id: alert.tourist_id,
+        incident_type: alert.type || 'general',
+        description: alert.description || `${alert.type} alert at ${alert.location?.address || 'unknown location'}`,
+        location: alert.location ? {
+          latitude: alert.location.lat || alert.location.latitude,
+          longitude: alert.location.lon || alert.location.longitude
+        } : null,
+        witnesses: [],
+        evidence: []
+      };
+      
+      const efir = await efirAPI.generateEFIR(efirData);
       console.log('E-FIR generated:', efir);
-      // You could show a success message or open E-FIR detail modal
+      alert('E-FIR generated successfully! ID: ' + (efir.efir_id || efir.id));
     } catch (error) {
       console.error('Failed to generate E-FIR:', error);
+      alert('Failed to generate E-FIR. Please try again.');
     }
   };
 
@@ -373,7 +403,11 @@ const Alerts = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => openModal('alertDetail', alert)}
+                            onClick={() => {
+                              setSelectedAlert(alert);
+                              setShowAlertModal(true);
+                            }}
+                            title="View Details"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
@@ -415,6 +449,16 @@ const Alerts = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Alert Detail Modal */}
+      <AlertDetailModal
+        alert={selectedAlert}
+        isOpen={showAlertModal}
+        onClose={() => {
+          setShowAlertModal(false);
+          setSelectedAlert(null);
+        }}
+      />
     </div>
   );
 };

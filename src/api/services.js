@@ -61,6 +61,44 @@ export const touristAPI = {
     return response.data;
   },
 
+  // NEW: Get comprehensive tourist profile
+  getTouristProfile: async (touristId) => {
+    const response = await apiClient.get(`/tourist/${touristId}/profile`);
+    return response.data;
+  },
+
+  // NEW: Get tourist current location
+  getCurrentLocation: async (touristId) => {
+    const response = await apiClient.get(`/tourist/${touristId}/location/current`);
+    return response.data;
+  },
+
+  // NEW: Get location history with filters (authority endpoint)
+  getLocationHistoryForTourist: async (touristId, params = {}) => {
+    const response = await apiClient.get(`/tourist/${touristId}/location-history`, { params });
+    return response.data;
+  },
+
+  // NEW: Get movement analysis
+  getMovementAnalysis: async (touristId, hours = 24) => {
+    const response = await apiClient.get(`/tourist/${touristId}/movement-analysis`, {
+      params: { hours }
+    });
+    return response.data;
+  },
+
+  // NEW: Get safety timeline
+  getSafetyTimeline: async (touristId) => {
+    const response = await apiClient.get(`/tourist/${touristId}/safety-timeline`);
+    return response.data;
+  },
+
+  // NEW: Get emergency contacts (use only in emergencies)
+  getEmergencyContacts: async (touristId) => {
+    const response = await apiClient.get(`/tourist/${touristId}/emergency-contacts`);
+    return response.data;
+  },
+
   // Trip management (tourist endpoints)
   startTrip: async (data) => {
     const response = await apiClient.post('/trip/start', data);
@@ -118,10 +156,11 @@ export const alertsAPI = {
     return response.data;
   },
 
-  closeIncident: async (alertId, notes = '') => {
+  closeIncident: async (incidentId, resolutionNotes = '', status = 'resolved') => {
     const response = await apiClient.post('/incident/close', {
-      alert_id: alertId,
-      notes,
+      incident_id: incidentId,
+      resolution_notes: resolutionNotes,
+      status,
     });
     return response.data;
   },
@@ -159,6 +198,11 @@ export const zonesAPI = {
     return response.data;
   },
 
+  updateZone: async (zoneId, zoneData) => {
+    const response = await apiClient.put(`/zones/${zoneId}`, zoneData);
+    return response.data;
+  },
+
   deleteZone: async (zoneId) => {
     const response = await apiClient.delete(`/zones/${zoneId}`);
     return response.data;
@@ -175,29 +219,37 @@ export const zonesAPI = {
 
 // E-FIR Management API
 export const efirAPI = {
-  generateEFIR: async (alertId, notes = '') => {
-    const response = await apiClient.post('/efir/generate', {
-      alert_id: alertId,
-      notes,
-    });
+  generateEFIR: async (efirData) => {
+    const response = await apiClient.post('/efir/generate', efirData);
     return response.data;
   },
 
   listEFIRs: async (params = {}) => {
-    try {
-      const response = await apiClient.get('/efir/list', { params });
-      return response.data;
-    } catch (err) {
-      // Fallback if endpoint doesn't exist yet
-      console.warn('E-FIR list endpoint not available', err);
-      return [];
-    }
+    const response = await apiClient.get('/authority/efir/list', { params });
+    return response.data;
+  },
+
+  verifyEFIR: async (blockchainTxId) => {
+    const response = await apiClient.get(`/blockchain/verify/${blockchainTxId}`);
+    return response.data;
+  },
+
+  exportEFIRPDF: async (efirId) => {
+    const response = await apiClient.get(`/efir/${efirId}/pdf`, {
+      responseType: 'blob'
+    });
+    return response.data;
   },
 };
 
 // Heatmap & Analytics API
 export const heatmapAPI = {
   // Comprehensive heatmap data (authority only)
+  getDashboardHeatmap: async (heatmapData) => {
+    const response = await apiClient.post('/dashboard/heatmap', heatmapData);
+    return response.data;
+  },
+
   getHeatmapData: async (bounds, options = {}) => {
     const params = {
       ...bounds,
@@ -276,6 +328,33 @@ export const adminAPI = {
     const response = await apiClient.get('/analytics/dashboard', {
       params: { days }
     });
+    return response.data;
+  },
+
+  getDashboardStats: async (period = '24h') => {
+    const response = await apiClient.get('/dashboard/statistics', {
+      params: { period }
+    });
+    return response.data;
+  },
+
+  getPerformanceMetrics: async () => {
+    const response = await apiClient.get('/system/performance');
+    return response.data;
+  },
+
+  getActivityLogs: async (params = {}) => {
+    const response = await apiClient.get('/system/logs', { params });
+    return response.data;
+  },
+
+  deleteUser: async (userId) => {
+    const response = await apiClient.delete(`/users/${userId}`);
+    return response.data;
+  },
+
+  getModelStatus: async (jobId) => {
+    const response = await apiClient.get(`/system/retrain-model/${jobId}`);
     return response.data;
   },
 };
@@ -393,6 +472,24 @@ export const notificationAPI = {
     const params = { limit };
     if (type) params.type = type;
     const response = await apiClient.get('/notify/history', { params });
+    return response.data;
+  },
+
+  getNotificationSettings: async () => {
+    const response = await apiClient.get('/notify/settings');
+    return response.data;
+  },
+
+  updateNotificationSettings: async (settings) => {
+    const response = await apiClient.put('/notify/settings', settings);
+    return response.data;
+  },
+};
+
+// Emergency Services API
+export const emergencyAPI = {
+  broadcastEmergencyAlert: async (alertData) => {
+    const response = await apiClient.post('/emergency/broadcast', alertData);
     return response.data;
   },
 };

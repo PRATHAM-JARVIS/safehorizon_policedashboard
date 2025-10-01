@@ -29,6 +29,8 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
+  const [retrainingModel, setRetrainingModel] = useState(false);
+  const [performanceMetrics, setPerformanceMetrics] = useState(null);
 
   useEffect(() => {
     const fetchAdminData = async () => {
@@ -36,16 +38,19 @@ const Admin = () => {
         setLoading(true);
         
         // Fetch system status
-        const status = await adminAPI.getSystemStatus();
+        const statusResponse = await adminAPI.getSystemStatus();
+        const status = statusResponse.status || statusResponse.data || statusResponse;
         setSystemStatus(status);
         
         // Fetch users list
-        const usersData = await adminAPI.getUsersList();
-        setUsers(usersData.users || usersData);
-        setFilteredUsers(usersData.users || usersData);
+        const usersResponse = await adminAPI.getUsersList();
+        const usersData = usersResponse.users || usersResponse.data || usersResponse || [];
+        const usersList = Array.isArray(usersData) ? usersData : [];
+        setUsers(usersList);
+        setFilteredUsers(usersList);
       } catch (error) {
         console.error('Failed to fetch admin data:', error);
-        // Show error state instead of mock data
+        // Show error state
         setSystemStatus({
           status: 'error',
           version: 'unknown',
@@ -95,7 +100,7 @@ const Admin = () => {
     try {
       const reason = isActive ? 'User suspended from admin panel' : 'User reactivated from admin panel';
       if (isActive) {
-        await adminAPI.suspendUser(userId, reason);
+        await adminAPI.suspendUser(userId, true, reason);
       } else {
         await adminAPI.activateUser(userId);
       }
@@ -105,10 +110,45 @@ const Admin = () => {
           ? { ...user, is_active: !isActive }
           : user
       ));
+      alert(`User ${isActive ? 'suspended' : 'activated'} successfully!`);
     } catch (error) {
       console.error('Failed to update user status:', error);
+      alert('Failed to update user status. Please try again.');
     }
   };
+
+  const handleRetrainModel = async (modelType = 'isolation_forest') => {
+    const confirmRetrain = window.confirm(`Are you sure you want to retrain the ${modelType} model? This may take several minutes.`);
+    if (!confirmRetrain) return;
+
+    try {
+      setRetrainingModel(true);
+      const result = await adminAPI.retrainModel(modelType, 30, false);
+      console.log('Model retraining initiated:', result);
+      alert(`Model retraining started!\nJob ID: ${result.job_id || 'N/A'}\nEstimated time: ${result.estimated_duration_minutes || 15} minutes`);
+    } catch (error) {
+      console.error('Failed to retrain model:', error);
+      alert('Failed to initiate model retraining. Please try again.');
+    } finally {
+      setRetrainingModel(false);
+    }
+  };
+
+  const fetchPerformanceMetrics = async () => {
+    try {
+      const metrics = await adminAPI.getPerformanceMetrics();
+      setPerformanceMetrics(metrics);
+    } catch (error) {
+      console.error('Failed to fetch performance metrics:', error);
+    }
+  };
+
+  useEffect(() => {
+    // Fetch performance metrics on mount and every minute
+    fetchPerformanceMetrics();
+    const metricsInterval = setInterval(fetchPerformanceMetrics, 60000);
+    return () => clearInterval(metricsInterval);
+  }, []);
 
   const getStatusIcon = (status) => {
     switch (status) {

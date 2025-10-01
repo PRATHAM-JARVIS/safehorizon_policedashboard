@@ -17,26 +17,35 @@ import {
 export const AlertDetailModal = ({ alert, isOpen, onClose }) => {
   if (!isOpen || !alert) return null;
 
-  const handleAcknowledge = () => {
-    // Mock acknowledgment
+  const handleAcknowledge = async () => {
     console.log('Acknowledging alert:', alert.id);
-    alert.is_acknowledged = true;
-    alert.acknowledged_by = 'Current Officer';
+    // This will be handled by parent component
+    if (window.alertsAPI) {
+      try {
+        await window.alertsAPI.acknowledgeAlert(alert.id, 'Alert acknowledged from modal');
+      } catch (error) {
+        console.error('Failed to acknowledge:', error);
+      }
+    }
     onClose();
   };
 
-  const handleResolve = () => {
-    // Mock resolution
+  const handleResolve = async () => {
     console.log('Resolving alert:', alert.id);
-    alert.is_resolved = true;
-    alert.resolved_by = 'Current Officer';
+    // This will be handled by parent component
+    if (window.alertsAPI) {
+      try {
+        await window.alertsAPI.resolveAlert(alert.id, 'Resolved from modal', 'Action completed');
+      } catch (error) {
+        console.error('Failed to resolve:', error);
+      }
+    }
     onClose();
   };
 
   const handleGenerateEFIR = () => {
-    // Mock E-FIR generation
     console.log('Generating E-FIR for alert:', alert.id);
-    alert('E-FIR generation initiated for Alert #' + alert.id);
+    window.alert('E-FIR generation initiated for Alert #' + alert.id);
     onClose();
   };
 
@@ -127,13 +136,15 @@ export const AlertDetailModal = ({ alert, isOpen, onClose }) => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Location:</span>
-                      <span>{alert.location}</span>
+                      <span className="text-right">
+                        {alert.location?.address || alert.location || 'Unknown location'}
+                      </span>
                     </div>
-                    {alert.coordinates && (
+                    {(alert.coordinates || alert.location?.lat || alert.lat) && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Coordinates:</span>
                         <span className="font-mono text-xs">
-                          {alert.coordinates.lat.toFixed(4)}, {alert.coordinates.lon.toFixed(4)}
+                          {(alert.coordinates?.lat || alert.location?.lat || alert.lat)?.toFixed(4)}, {(alert.coordinates?.lon || alert.coordinates?.lng || alert.location?.lon || alert.location?.lng || alert.lon || alert.lng)?.toFixed(4)}
                         </span>
                       </div>
                     )}

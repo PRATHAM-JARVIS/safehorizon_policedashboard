@@ -3,11 +3,10 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card.
 import { Badge } from '../components/ui/badge.jsx';
 import { Button } from '../components/ui/button.jsx';
 import { useWebSocketContext } from '../contexts/WebSocketContext.jsx';
-import { touristAPI, alertsAPI, zonesAPI } from '../api/services.js';
+import { touristAPI, alertsAPI, zonesAPI, adminAPI } from '../api/services.js';
 import { useAppStore } from '../store/appStore.js';
 import MapComponent from '../components/ui/Map.jsx';
 import AlertDetailModal from '../components/ui/AlertDetailModal.jsx';
-import { LoadingSpinner, ErrorState, ConnectionStatus, RealTimeIndicator } from '../components/ui/StatusComponents.jsx';
 import {
   Users,
   AlertTriangle,
@@ -35,13 +34,11 @@ const Dashboard = () => {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [error, setError] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(null);
   const { openModal } = useAppStore();
 
-  // Use WebSocket context instead of creating new WebSocket instance
+  // Use WebSocket context
   const {
     lastMessage,
-    readyState,
     wsError,
     connectionAttempts,
     isConnected,
@@ -59,82 +56,186 @@ const Dashboard = () => {
     }
   }, [lastMessage]);
 
-  // Chart data will come from API in production
-  const alertsChartData = [
-    { name: 'Mon', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
-    { name: 'Tue', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
-    { name: 'Wed', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
-    { name: 'Thu', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
-    { name: 'Fri', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
-    { name: 'Sat', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
-    { name: 'Sun', alerts: 0, resolved: 0, sos: 0, geofence: 0, anomaly: 0 },
-  ];
+  // Helper function to calculate alerts chart data
+  const calculateAlertsChartData = (alerts) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const chartData = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dayName = days[date.getDay()];
+      
+      const dayAlerts = alerts.filter(alert => {
+        const alertDate = new Date(alert.created_at || alert.timestamp);
+        return alertDate.toDateString() === date.toDateString();
+      });
+      
+      chartData.push({
+        name: dayName,
+        alerts: dayAlerts.length,
+        resolved: dayAlerts.filter(a => a.is_resolved).length,
+        sos: dayAlerts.filter(a => a.type === 'sos' || a.type === 'sos_alert').length,
+        geofence: dayAlerts.filter(a => a.type === 'geofence' || a.type === 'geofence_violation').length,
+        anomaly: dayAlerts.filter(a => a.type === 'anomaly' || a.type === 'anomaly_detected').length
+      });
+    }
+    
+    return chartData;
+  };
 
-  const safetyScoreData = [
-    { score: '90-100', count: 0, color: '#10b981' },
-    { score: '80-89', count: 0, color: '#22c55e' },
-    { score: '70-79', count: 0, color: '#84cc16' },
-    { score: '60-69', count: 0, color: '#eab308' },
-    { score: '50-59', count: 0, color: '#f59e0b' },
-    { score: '40-49', count: 0, color: '#ef4444' },
-    { score: '<40', count: 0, color: '#dc2626' },
-  ];
+  // Helper function to calculate safety score distribution
+  const calculateSafetyScoreData = (tourists) => {
+    const distribution = [
+      { score: '90-100', count: 0, color: '#10b981' },
+      { score: '80-89', count: 0, color: '#22c55e' },
+      { score: '70-79', count: 0, color: '#84cc16' },
+      { score: '60-69', count: 0, color: '#eab308' },
+      { score: '50-59', count: 0, color: '#f59e0b' },
+      { score: '40-49', count: 0, color: '#ef4444' },
+      { score: '<40', count: 0, color: '#dc2626' },
+    ];
+    
+    tourists.forEach(tourist => {
+      const score = tourist.safety_score || 0;
+      if (score >= 90) distribution[0].count++;
+      else if (score >= 80) distribution[1].count++;
+      else if (score >= 70) distribution[2].count++;
+      else if (score >= 60) distribution[3].count++;
+      else if (score >= 50) distribution[4].count++;
+      else if (score >= 40) distribution[5].count++;
+      else distribution[6].count++;
+    });
+    
+    return distribution.filter(d => d.count > 0); // Only show non-zero categories
+  };
+
+  // Chart data state - calculated from real API data
+  const [alertsChartData, setAlertsChartData] = useState([]);
+  const [safetyScoreData, setSafetyScoreData] = useState([]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
         
-        // Fetch active tourists with error handling
-        let tourists = [];
+        // Fetch dashboard statistics from dedicated endpoint
+        let dashboardStats = null;
         try {
-          tourists = await touristAPI.getActiveTourists();
-          tourists = Array.isArray(tourists) ? tourists : [];
-        } catch (err) {
-          console.error('Failed to fetch tourists:', err);
-          tourists = [];
+          dashboardStats = await adminAPI.getDashboardStats('24h');
+          console.log('Dashboard stats fetched:', dashboardStats);
+        } catch (statsErr) {
+          console.warn('Dashboard stats endpoint not available, falling back to manual calculation:', statsErr);
         }
-        
-        // Fetch recent alerts (last 24 hours) with error handling
-        let alerts = [];
-        try {
-          alerts = await alertsAPI.getRecentAlerts({ hours: 24 });
-          alerts = Array.isArray(alerts) ? alerts : [];
-        } catch (err) {
-          console.error('Failed to fetch alerts:', err);
-          alerts = [];
+
+        // If dashboard stats available, use them directly
+        if (dashboardStats && (dashboardStats.tourists || dashboardStats.alerts)) {
+          setStats({
+            activeTourists: dashboardStats.tourists?.active_now || 0,
+            alertsToday: dashboardStats.alerts?.total || 0,
+            sosCount: dashboardStats.alerts?.by_type?.sos || 0,
+            tripsInProgress: dashboardStats.incidents?.open || 0,
+          });
+
+          // Use trends data if available
+          if (dashboardStats.alert_trends) {
+            const chartData = dashboardStats.alert_trends.map(trend => ({
+              name: new Date(trend.hour).toLocaleDateString('en-US', { weekday: 'short' }),
+              alerts: trend.count,
+              resolved: 0, // Not provided by API
+              sos: 0,
+              geofence: 0,
+              anomaly: 0
+            }));
+            setAlertsChartData(chartData);
+          }
+
+          // Use risk distribution if available
+          if (dashboardStats.risk_distribution) {
+            const scoreData = Object.entries(dashboardStats.risk_distribution).map(([key, value]) => ({
+              score: key,
+              count: value,
+              color: key === 'critical' ? '#dc2626' : key === 'high' ? '#ef4444' : key === 'medium' ? '#f59e0b' : '#10b981'
+            }));
+            setSafetyScoreData(scoreData);
+          }
+        } else {
+          // Fallback to manual data fetching
+          // Fetch active tourists with error handling
+          let tourists = [];
+          try {
+            const touristResponse = await touristAPI.getActiveTourists();
+            const touristData = touristResponse.tourists || touristResponse.data || touristResponse || [];
+            tourists = Array.isArray(touristData) ? touristData : [];
+            console.log('Fetched tourists:', tourists.length);
+          } catch (err) {
+            console.error('Failed to fetch tourists:', err);
+            tourists = [];
+          }
+          
+          // Fetch recent alerts (last 7 days for charts) with error handling
+          let alerts = [];
+          let alertsForChart = [];
+          try {
+            // Fetch last 7 days for chart data
+            const alertResponse = await alertsAPI.getRecentAlerts({ hours_back: 168 });
+            const alertData = alertResponse.alerts || alertResponse.data || alertResponse || [];
+            alertsForChart = Array.isArray(alertData) ? alertData : [];
+            console.log('Fetched alerts for chart:', alertsForChart.length);
+            
+            // Get last 24 hours for recent alerts display
+            alerts = alertsForChart.filter(alert => {
+              const alertTime = new Date(alert.created_at || alert.timestamp);
+              const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+              return alertTime >= dayAgo;
+            });
+          } catch (err) {
+            console.error('Failed to fetch alerts:', err);
+            alerts = [];
+            alertsForChart = [];
+          }
+          
+          // Calculate chart data from real alerts
+          const chartData = calculateAlertsChartData(alertsForChart);
+          setAlertsChartData(chartData);
+          
+          // Calculate safety score distribution
+          const scoreData = calculateSafetyScoreData(tourists);
+          setSafetyScoreData(scoreData);
+          
+          // Merge API stats with WebSocket real-time stats
+          setStats({
+            activeTourists: alertStats.activeTourists || tourists.length || 0,
+            alertsToday: (alerts.filter(alert => {
+              const today = new Date();
+              const alertDate = new Date(alert.created_at || alert.timestamp);
+              return alertDate.toDateString() === today.toDateString();
+            }).length) + (alertStats.alertsToday || 0),
+            sosCount: (alerts.filter(alert => alert.type === 'sos' || alert.type === 'sos_alert').length) + (alertStats.sosCount || 0),
+            tripsInProgress: tourists.filter(t => t.active_trip || t.status === 'active').length || 0,
+          });
+          
+          setRecentAlerts(alerts);
+          setTourists(tourists);
         }
         
         // Fetch zones with error handling
         let zonesData = [];
         try {
-          zonesData = await zonesAPI.listZones();
-          zonesData = Array.isArray(zonesData) ? zonesData : [];
+          const zonesResponse = await zonesAPI.listZones();
+          const zones = zonesResponse.zones || zonesResponse.data || zonesResponse || [];
+          zonesData = Array.isArray(zones) ? zones : [];
+          console.log('Fetched zones:', zonesData.length);
         } catch (err) {
           console.error('Failed to fetch zones:', err);
           zonesData = [];
         }
         
-        // Merge API stats with WebSocket real-time stats
-        setStats({
-          activeTourists: alertStats.activeTourists || tourists.length || 0,
-          alertsToday: (alerts.filter(alert => {
-            const today = new Date();
-            const alertDate = new Date(alert.created_at);
-            return alertDate.toDateString() === today.toDateString();
-          }).length) + (alertStats.alertsToday || 0),
-          sosCount: (alerts.filter(alert => alert.type === 'sos').length) + (alertStats.sosCount || 0),
-          tripsInProgress: tourists.filter(t => t.status === 'active').length || 0,
-        });
-        
-        setRecentAlerts(alerts);
-        setTourists(tourists);
         setZones(zonesData);
         setError(null);
-        setLastUpdate(new Date().toISOString());
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
-        setError(error);
+        setError(error.message || 'Failed to connect to backend API');
         // Show user-friendly error message
         setStats({
           activeTourists: alertStats.activeTourists || 0,
@@ -235,25 +336,23 @@ const Dashboard = () => {
               </Button>
             )}
           </div>
-          
-          <ConnectionStatus isConnected={readyState === 1} lastUpdate={lastUpdate} />
-          <RealTimeIndicator isLive={readyState === 1} />
         </div>
       </div>
 
       {/* Error State */}
       {error && !loading && (
-        <ErrorState 
-          error={error} 
-          onRetry={() => window.location.reload()} 
-          title="Dashboard Connection Error"
-        />
+        <div className="text-center py-8">
+          <AlertTriangle className="w-12 h-12 mx-auto text-destructive mb-4" />
+          <h3 className="text-lg font-medium mb-2">Dashboard Connection Error</h3>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
       )}
 
       {/* Loading State */}
       {loading && (
         <div className="flex justify-center items-center py-12">
-          <LoadingSpinner size="large" />
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
         </div>
       )}
 

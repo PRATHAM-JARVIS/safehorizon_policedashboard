@@ -30,12 +30,16 @@ const EFIRs = () => {
     const fetchEFIRs = async () => {
       try {
         setLoading(true);
-        const data = await efirAPI.listEFIRs();
-        setEfirs(data);
-        setFilteredEfirs(data);
+        // Use the proper authority E-FIR list endpoint
+        const response = await efirAPI.listEFIRs({ limit: 100, offset: 0 });
+        // Handle different response structures
+        const data = response.efir_records || response.efirs || response.data || response || [];
+        const efirsList = Array.isArray(data) ? data : [];
+        setEfirs(efirsList);
+        setFilteredEfirs(efirsList);
       } catch (error) {
         console.error('Failed to fetch E-FIRs:', error);
-        // Show error state - E-FIR endpoint may not be implemented yet
+        // Show error state - E-FIR endpoint may not be fully implemented yet
         setEfirs([]);
         setFilteredEfirs([]);
       } finally {
@@ -54,10 +58,12 @@ const EFIRs = () => {
   useEffect(() => {
     if (searchTerm) {
       const filtered = efirs.filter(efir =>
-        efir.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        efir.tourist_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        efir.efir_id?.toString().includes(searchTerm.toLowerCase()) ||
+        efir.fir_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        efir.blockchain_tx_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        efir.tourist?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         efir.incident_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        efir.created_by?.toLowerCase().includes(searchTerm.toLowerCase())
+        efir.officer?.name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredEfirs(filtered);
     } else {
@@ -65,28 +71,57 @@ const EFIRs = () => {
     }
   }, [efirs, searchTerm]);
 
-  const handleExportPDF = (efir) => {
-    // In a real application, this would generate and download a PDF
-    console.log('Exporting E-FIR to PDF:', efir.id);
-    // You could use libraries like jsPDF or html2pdf for client-side PDF generation
-    // Or make an API call to a backend service that generates PDFs
+  const handleExportPDF = async (efir) => {
+    try {
+      console.log('Exporting E-FIR to PDF:', efir.efir_id);
+      const pdfBlob = await efirAPI.exportEFIRPDF(efir.efir_id);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `EFIR-${efir.fir_number || efir.efir_id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
+      alert('Failed to export PDF. This feature may not be available yet.');
+    }
   };
 
   const handleViewBlockchain = (hash) => {
     // In a real application, this would open a blockchain explorer
     console.log('Viewing blockchain transaction:', hash);
-    // Example: window.open(`https://etherscan.io/tx/${hash}`, '_blank');
+    // Example for Ethereum: window.open(`https://etherscan.io/tx/${hash}`, '_blank');
+    // For now, show an alert with the hash
+    alert(`Blockchain Transaction Hash:\n${hash}\n\nVerification link would open in blockchain explorer.`);
   };
 
-  const formatDateTime = (dateString) => {
+  const _handleVerifyEFIR = async (blockchainTxId) => {
+    try {
+      const verification = await efirAPI.verifyEFIR(blockchainTxId);
+      console.log('E-FIR verification result:', verification);
+      alert(`E-FIR Verification:\nStatus: ${verification.is_valid ? 'Valid' : 'Invalid'}\nTimestamp: ${verification.timestamp || 'N/A'}`);
+    } catch (error) {
+      console.error('Failed to verify E-FIR:', error);
+      alert('Failed to verify E-FIR on blockchain. Please try again later.');
+    }
+  };
+
+  const _formatDateTime = (dateString) => {
     return new Date(dateString).toLocaleString();
   };
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'closed': return 'success';
+      case 'resolved': return 'success';
       case 'verified': return 'success';
-      case 'pending': return 'warning';
-      case 'failed': return 'destructive';
+      case 'open': return 'warning';
+      case 'in_progress': return 'default';
+      case 'pending': return 'secondary';
       default: return 'secondary';
     }
   };
@@ -101,239 +136,212 @@ const EFIRs = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header with Search */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold flex items-center space-x-2">
-            <FileText className="w-8 h-8" />
-            <span>E-FIR Management</span>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <FileText className="w-6 h-6" />
+            E-FIR Records
           </h1>
-          <p className="text-muted-foreground">
-            Electronic First Information Reports with blockchain verification
+          <p className="text-sm text-muted-foreground mt-1">
+            Blockchain-secured incident reports
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="text-lg px-3 py-1">
-            {filteredEfirs.length} Reports
-          </Badge>
-        </div>
+        <Badge variant="outline" className="text-sm px-4 py-2 w-fit">
+          <Shield className="w-4 h-4 mr-2" />
+          {filteredEfirs.length} Total Records
+        </Badge>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
-                <FileText className="w-5 h-5 text-blue-600" />
-              </div>
+      {/* Compact Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total E-FIRs</p>
-                <p className="text-xl font-bold text-blue-600">{efirs.length}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="text-2xl font-bold">{efirs.length}</p>
               </div>
+              <FileText className="w-8 h-8 text-blue-500 opacity-20" />
             </div>
           </CardContent>
         </Card>
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className="bg-green-100 dark:bg-green-900 p-2 rounded-full">
-                <Shield className="w-5 h-5 text-green-600" />
-              </div>
+        <Card className="border-l-4 border-l-green-500">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Verified</p>
-                <p className="text-xl font-bold text-green-600">
-                  {efirs.filter(e => e.status === 'verified').length}
-                </p>
+                <p className="text-xs text-muted-foreground">Verified</p>
+                <p className="text-2xl font-bold">{efirs.filter(e => e.is_verified).length}</p>
               </div>
+              <Shield className="w-8 h-8 text-green-500 opacity-20" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className="bg-yellow-100 dark:bg-yellow-900 p-2 rounded-full">
-                <Calendar className="w-5 h-5 text-yellow-600" />
-              </div>
+        <Card className="border-l-4 border-l-orange-500">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">This Month</p>
-                <p className="text-xl font-bold text-yellow-600">
-                  {efirs.filter(e => new Date(e.created_at).getMonth() === new Date().getMonth()).length}
+                <p className="text-xs text-muted-foreground">This Month</p>
+                <p className="text-2xl font-bold">
+                  {efirs.filter(e => new Date(e.generated_at).getMonth() === new Date().getMonth()).length}
                 </p>
               </div>
+              <Calendar className="w-8 h-8 text-orange-500 opacity-20" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className="bg-purple-100 dark:bg-purple-900 p-2 rounded-full">
-                <Hash className="w-5 h-5 text-purple-600" />
-              </div>
+        <Card className="border-l-4 border-l-purple-500">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Blockchain</p>
-                <p className="text-xl font-bold text-purple-600">100%</p>
+                <p className="text-xs text-muted-foreground">Pending</p>
+                <p className="text-2xl font-bold">
+                  {efirs.filter(e => !e.is_verified && !e.incident?.status).length}
+                </p>
               </div>
+              <Hash className="w-8 h-8 text-purple-500 opacity-20" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input
-              placeholder="Search E-FIRs by ID, tourist name, incident type, or officer..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+        <Input
+          placeholder="Search by E-FIR number, tourist name, or incident type..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
 
-      {/* E-FIRs Table */}
+      {/* E-FIRs Table - Simplified */}
       <Card>
-        <CardHeader>
-          <CardTitle>E-FIR History</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {filteredEfirs.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No E-FIRs found</h3>
-              <p className="text-muted-foreground">
+            <div className="text-center py-12">
+              <FileText className="w-16 h-16 mx-auto text-muted-foreground/30 mb-3" />
+              <h3 className="text-lg font-medium mb-1">No E-FIRs found</h3>
+              <p className="text-sm text-muted-foreground">
                 {searchTerm 
                   ? 'Try adjusting your search criteria'
-                  : 'No Electronic FIRs have been generated yet'
+                  : 'No incident reports available'
                 }
               </p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>E-FIR ID</TableHead>
-                  <TableHead>Tourist</TableHead>
-                  <TableHead>Incident Type</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Created By</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEfirs.map((efir) => (
-                  <TableRow key={efir.id}>
-                    <TableCell>
-                      <div className="font-mono text-sm font-medium">{efir.id}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{efir.tourist_name}</div>
-                        <div className="text-sm text-muted-foreground">Alert #{efir.alert_id}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{efir.incident_type}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1 text-sm">
-                        <MapPin className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-mono">{efir.location}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm">{efir.created_by}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {formatDateTime(efir.created_at)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusColor(efir.status)} className="capitalize">
-                        {efir.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-1">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            setSelectedEfir(efir);
-                            setShowDetailModal(true);
-                          }}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleExportPDF(efir)}
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                        
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewBlockchain(efir.blockchain_hash)}
-                          title="View on Blockchain"
-                        >
-                          <Hash className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-semibold">E-FIR Number</TableHead>
+                    <TableHead className="font-semibold">Tourist</TableHead>
+                    <TableHead className="font-semibold">Incident</TableHead>
+                    <TableHead className="font-semibold">Date & Time</TableHead>
+                    <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="text-right font-semibold">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Blockchain Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Blockchain Verification</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-muted p-4 rounded-lg">
-            <div className="flex items-start space-x-3">
-              <Hash className="w-6 h-6 text-primary mt-1" />
-              <div>
-                <h4 className="font-medium mb-2">Tamper-Proof Records</h4>
-                <p className="text-sm text-muted-foreground">
-                  All E-FIRs are recorded on a blockchain network to ensure data integrity and 
-                  prevent tampering. Each report receives a unique cryptographic hash that serves 
-                  as proof of authenticity. Click the hash icon next to any E-FIR to view its 
-                  blockchain transaction.
-                </p>
-                <div className="mt-3 flex items-center space-x-4 text-sm">
-                  <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span>Network Status: Online</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Shield className="w-4 h-4 text-green-500" />
-                    <span>All records verified</span>
-                  </div>
-                </div>
-              </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredEfirs.map((efir) => (
+                    <TableRow key={efir.efir_id || efir.fir_number} className="hover:bg-muted/30">
+                      <TableCell>
+                        <div>
+                          <div className="font-mono text-sm font-medium">{efir.fir_number}</div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                            <Hash className="w-3 h-3" />
+                            ID: {efir.efir_id}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium text-sm">{efir.tourist?.name || 'N/A'}</div>
+                          <div className="text-xs text-muted-foreground">{efir.tourist?.email}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium capitalize">{efir.incident_type}</span>
+                            <Badge 
+                              variant={efir.severity === 'critical' ? 'destructive' : efir.severity === 'high' ? 'warning' : 'secondary'} 
+                              className="text-xs capitalize"
+                            >
+                              {efir.severity}
+                            </Badge>
+                          </div>
+                          {efir.location && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <MapPin className="w-3 h-3" />
+                              {efir.location.lat && efir.location.lon
+                                ? `${efir.location.lat.toFixed(2)}, ${efir.location.lon.toFixed(2)}`
+                                : efir.location.description?.substring(0, 20) || 'N/A'
+                              }
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {new Date(efir.generated_at || efir.incident_timestamp).toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(efir.generated_at || efir.incident_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={getStatusColor(efir.incident?.status || (efir.is_verified ? 'verified' : 'pending'))} 
+                          className="capitalize"
+                        >
+                          {efir.incident?.status || (efir.is_verified ? '✓ Verified' : 'Pending')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedEfir(efir);
+                              setShowDetailModal(true);
+                            }}
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleExportPDF(efir)}
+                            title="Export PDF"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewBlockchain(efir.blockchain_tx_id)}
+                            title="View Blockchain"
+                            disabled={!efir.blockchain_tx_id}
+                          >
+                            <Hash className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 

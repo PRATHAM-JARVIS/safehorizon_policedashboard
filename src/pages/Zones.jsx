@@ -39,12 +39,15 @@ const Zones = () => {
     const fetchZones = async () => {
       try {
         setLoading(true);
-        const data = await zonesAPI.manageZones();
-        setZones(data);
-        setFilteredZones(data);
+        const response = await zonesAPI.listZones();
+        // Handle different response structures
+        const data = response.zones || response.data || response || [];
+        const zonesList = Array.isArray(data) ? data : [];
+        setZones(zonesList);
+        setFilteredZones(zonesList);
       } catch (error) {
         console.error('Failed to fetch zones:', error);
-        // Show error state instead of mock data
+        // Show error state
         setZones([]);
         setFilteredZones([]);
       } finally {
@@ -101,16 +104,15 @@ const Zones = () => {
     try {
       setCreating(true);
       
-      const zoneData = {
-        ...newZone,
-        id: Date.now().toString(), // Mock ID
-        created_at: new Date().toISOString(),
-        created_by: 'Current User'
-      };
-
-      // In real app, this would call the API
-      // const createdZone = await zonesAPI.createZone(zoneData);
-      setZones(prev => [...prev, zoneData]);
+      // Call real API to create zone
+      const createdZone = await zonesAPI.createZone({
+        name: newZone.name,
+        description: newZone.description,
+        zone_type: newZone.zone_type,
+        coordinates: newZone.coordinates
+      });
+      
+      setZones(prev => [...prev, createdZone]);
       
       // Reset form
       setNewZone({
@@ -123,6 +125,7 @@ const Zones = () => {
       setIsDrawing(false);
     } catch (error) {
       console.error('Failed to create zone:', error);
+      alert('Failed to create zone. Please try again.');
     } finally {
       setCreating(false);
     }

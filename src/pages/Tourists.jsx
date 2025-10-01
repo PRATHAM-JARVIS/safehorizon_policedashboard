@@ -29,12 +29,15 @@ const Tourists = () => {
     const fetchTourists = async () => {
       try {
         setLoading(true);
-        const data = await touristAPI.getActiveTourists();
-        setTourists(data);
-        setFilteredTourists(data);
+        const response = await touristAPI.getActiveTourists();
+        // Handle different response structures
+        const data = response.tourists || response.data || response || [];
+        const touristsList = Array.isArray(data) ? data : [];
+        setTourists(touristsList);
+        setFilteredTourists(touristsList);
       } catch (error) {
         console.error('Failed to fetch tourists:', error);
-        // Show error state instead of mock data
+        // Show error state
         setTourists([]);
         setFilteredTourists([]);
       } finally {

@@ -17,12 +17,10 @@ import TouristDetail from './pages/TouristDetail.jsx';
 import Alerts from './pages/Alerts.jsx';
 import Zones from './pages/Zones.jsx';
 import EFIRs from './pages/EFIRs.jsx';
+import Emergency from './pages/Emergency.jsx';
 import Admin from './pages/Admin.jsx';
-import APITest from './pages/APITest.jsx';
-import CSSTest from './pages/CSSTest.jsx';
-import WebSocketTest from './pages/WebSocketTest.jsx';
 
-// CSS imports for Leaflet (if used)
+// CSS imports for Leaflet
 import 'leaflet/dist/leaflet.css';
 
 function App() {
@@ -41,7 +39,6 @@ function App() {
           <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/css-test" element={<CSSTest />} />
           
           {/* Protected Routes with WebSocket */}
           <Route path="/" element={
@@ -58,9 +55,11 @@ function App() {
             <Route path="alerts" element={<Alerts />} />
             <Route path="zones" element={<Zones />} />
             <Route path="efirs" element={<EFIRs />} />
-            <Route path="api-test" element={<APITest />} />
-            <Route path="ws-test" element={<WebSocketTest />} />
-            <Route path="css-test" element={<CSSTest />} />
+            <Route path="emergency" element={
+              <ProtectedRoute requireAdmin={false}>
+                <Emergency />
+              </ProtectedRoute>
+            } />
             <Route path="admin" element={
               <ProtectedRoute requireAdmin={true}>
                 <Admin />
