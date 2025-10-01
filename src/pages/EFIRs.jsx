@@ -5,6 +5,7 @@ import { Input } from '../components/ui/input.jsx';
 import { Badge } from '../components/ui/badge.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table.jsx';
 import EFIRDetailModal from '../components/ui/EFIRDetailModal.jsx';
+import { efirAPI } from '../api/services.js';
 import {
   FileText,
   Search,

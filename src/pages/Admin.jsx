@@ -41,8 +41,8 @@ const Admin = () => {
         
         // Fetch users list
         const usersData = await adminAPI.getUsersList();
-        setUsers(usersData);
-        setFilteredUsers(usersData);
+        setUsers(usersData.users || usersData);
+        setFilteredUsers(usersData.users || usersData);
       } catch (error) {
         console.error('Failed to fetch admin data:', error);
         // Show error state instead of mock data
@@ -94,7 +94,11 @@ const Admin = () => {
   const handleSuspendUser = async (userId, isActive) => {
     try {
       const reason = isActive ? 'User suspended from admin panel' : 'User reactivated from admin panel';
-      await adminAPI.suspendUser(userId, !isActive, reason);
+      if (isActive) {
+        await adminAPI.suspendUser(userId, reason);
+      } else {
+        await adminAPI.activateUser(userId);
+      }
       
       setUsers(prev => prev.map(user => 
         user.id === userId 

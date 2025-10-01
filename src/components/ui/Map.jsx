@@ -45,7 +45,7 @@ const sosIcon = createCustomIcon('#dc2626', '<circle cx="12" cy="12" r="10"/><li
 // Component for drawing polygons
 const PolygonDrawer = ({ onPolygonComplete, isActive }) => {
   const [positions, setPositions] = useState([]);
-  const map = useMapEvents({
+  useMapEvents({
     click(e) {
       if (isActive) {
         const newPosition = [e.latlng.lat, e.latlng.lng];
@@ -83,21 +83,16 @@ export const MapComponent = ({
 }) => {
   const mapRef = useRef();
 
+  // Ensure arrays are valid to prevent crashes
+  const safeTourists = Array.isArray(tourists) ? tourists.filter(t => t && t.current_location && t.current_location.lat && t.current_location.lon) : [];
+  const safeAlerts = Array.isArray(alerts) ? alerts.filter(a => a && a.coordinates && a.coordinates.lat && a.coordinates.lon) : [];
+  const safeZones = Array.isArray(zones) ? zones.filter(z => z && z.coordinates && Array.isArray(z.coordinates)) : [];
+
   const getZoneColor = (zoneType) => {
     switch (zoneType) {
       case 'restricted': return '#ef4444';
       case 'risky': return '#f59e0b';
       case 'safe': return '#10b981';
-      default: return '#6b7280';
-    }
-  };
-
-  const getAlertSeverityColor = (severity) => {
-    switch (severity) {
-      case 'critical': return '#dc2626';
-      case 'high': return '#ef4444';
-      case 'medium': return '#f59e0b';
-      case 'low': return '#10b981';
       default: return '#6b7280';
     }
   };
@@ -124,7 +119,7 @@ export const MapComponent = ({
         )}
 
         {/* Render Zones */}
-        {zones.map((zone) => (
+        {safeZones.map((zone) => (
           <Polygon
             key={zone.id}
             positions={zone.coordinates}
@@ -151,7 +146,7 @@ export const MapComponent = ({
         ))}
 
         {/* Render Tourist Markers */}
-        {tourists.map((tourist) => (
+        {safeTourists.map((tourist) => (
           <Marker
             key={tourist.id}
             position={[tourist.current_location.lat, tourist.current_location.lon]}
@@ -177,7 +172,7 @@ export const MapComponent = ({
         ))}
 
         {/* Render Alert Markers */}
-        {alerts.map((alert) => (
+        {safeAlerts.map((alert) => (
           <Marker
             key={alert.id}
             position={[alert.coordinates.lat, alert.coordinates.lon]}

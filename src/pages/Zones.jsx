@@ -39,7 +39,7 @@ const Zones = () => {
     const fetchZones = async () => {
       try {
         setLoading(true);
-        const data = await zonesAPI.listZones();
+        const data = await zonesAPI.manageZones();
         setZones(data);
         setFilteredZones(data);
       } catch (error) {

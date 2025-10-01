@@ -34,20 +34,23 @@ export const ErrorState = ({ error, onRetry, title = 'Connection Error' }) => (
 );
 
 export const EmptyState = ({ 
-  icon: Icon = AlertTriangle, 
+  icon, 
   title = 'No Data Available', 
   description = 'No data to display at the moment.',
   action
-}) => (
-  <Card className="w-full">
-    <CardContent className="flex flex-col items-center justify-center p-8 text-center">
-      <Icon className="w-16 h-16 text-gray-400 mb-4" />
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-muted-foreground mb-4">{description}</p>
-      {action}
-    </CardContent>
-  </Card>
-);
+}) => {
+  const IconComponent = icon || AlertTriangle;
+  return (
+    <Card className="w-full">
+      <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+        <IconComponent className="w-16 h-16 text-gray-400 mb-4" />
+        <h3 className="text-lg font-semibold mb-2">{title}</h3>
+        <p className="text-muted-foreground mb-4">{description}</p>
+        {action}
+      </CardContent>
+    </Card>
+  );
+};
 
 export const ConnectionStatus = ({ isConnected, lastUpdate }) => (
   <div className="flex items-center gap-2 text-sm text-muted-foreground">

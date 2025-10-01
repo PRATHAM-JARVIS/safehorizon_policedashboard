@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card.jsx';
 import { Badge } from '../components/ui/badge.jsx';
 import { Button } from '../components/ui/button.jsx';
-import { useWebSocket } from '../hooks/useWebSocket.js';
+import { useWebSocketContext } from '../contexts/WebSocketContext.jsx';
 import { touristAPI, alertsAPI, zonesAPI } from '../api/services.js';
 import { useAppStore } from '../store/appStore.js';
 import MapComponent from '../components/ui/Map.jsx';
@@ -16,7 +16,8 @@ import {
   Activity,
   MapPin,
   Clock,
-  Eye
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
@@ -37,24 +38,19 @@ const Dashboard = () => {
   const [lastUpdate, setLastUpdate] = useState(null);
   const { openModal } = useAppStore();
 
-  // WebSocket for real-time alerts
-  const { lastMessage, readyState } = useWebSocket(
-    'authority-alerts', // This will be converted to the correct URL in the hook
-    {
-      onMessage: (alert) => {
-        console.log('New alert received:', alert);
-        setRecentAlerts(prev => [alert, ...prev.slice(0, 9)]);
-        
-        // Update stats
-        setStats(prev => ({
-          ...prev,
-          alertsToday: prev.alertsToday + 1,
-          sosCount: alert.type === 'sos' ? prev.sosCount + 1 : prev.sosCount,
-        }));
-      },
-      filters: { severity: 'high' } // Only get high and critical alerts in real-time
-    }
-  );
+  // Use WebSocket context instead of creating new WebSocket instance
+  const {
+    lastMessage,
+    readyState,
+    wsError,
+    connectionAttempts,
+    isConnected,
+    isConnecting,
+    connectWebSocket,
+    forceReconnect,
+    realtimeAlerts,
+    alertStats
+  } = useWebSocketContext();
 
   // Handle incoming WebSocket messages
   useEffect(() => {
@@ -89,24 +85,46 @@ const Dashboard = () => {
       try {
         setLoading(true);
         
-        // Fetch active tourists
-        const tourists = await touristAPI.getActiveTourists();
+        // Fetch active tourists with error handling
+        let tourists = [];
+        try {
+          tourists = await touristAPI.getActiveTourists();
+          tourists = Array.isArray(tourists) ? tourists : [];
+        } catch (err) {
+          console.error('Failed to fetch tourists:', err);
+          tourists = [];
+        }
         
-        // Fetch recent alerts (last 24 hours)
-        const alerts = await alertsAPI.getRecentAlerts({ hours: 24 });
+        // Fetch recent alerts (last 24 hours) with error handling
+        let alerts = [];
+        try {
+          alerts = await alertsAPI.getRecentAlerts({ hours: 24 });
+          alerts = Array.isArray(alerts) ? alerts : [];
+        } catch (err) {
+          console.error('Failed to fetch alerts:', err);
+          alerts = [];
+        }
         
-        // Fetch zones
-        const zonesData = await zonesAPI.listZones();
+        // Fetch zones with error handling
+        let zonesData = [];
+        try {
+          zonesData = await zonesAPI.listZones();
+          zonesData = Array.isArray(zonesData) ? zonesData : [];
+        } catch (err) {
+          console.error('Failed to fetch zones:', err);
+          zonesData = [];
+        }
         
+        // Merge API stats with WebSocket real-time stats
         setStats({
-          activeTourists: tourists.length,
-          alertsToday: alerts.filter(alert => {
+          activeTourists: alertStats.activeTourists || tourists.length || 0,
+          alertsToday: (alerts.filter(alert => {
             const today = new Date();
             const alertDate = new Date(alert.created_at);
             return alertDate.toDateString() === today.toDateString();
-          }).length,
-          sosCount: alerts.filter(alert => alert.type === 'sos').length,
-          tripsInProgress: tourists.filter(t => t.status === 'active').length,
+          }).length) + (alertStats.alertsToday || 0),
+          sosCount: (alerts.filter(alert => alert.type === 'sos').length) + (alertStats.sosCount || 0),
+          tripsInProgress: tourists.filter(t => t.status === 'active').length || 0,
         });
         
         setRecentAlerts(alerts);
@@ -119,9 +137,9 @@ const Dashboard = () => {
         setError(error);
         // Show user-friendly error message
         setStats({
-          activeTourists: 0,
-          alertsToday: 0,
-          sosCount: 0,
+          activeTourists: alertStats.activeTourists || 0,
+          alertsToday: alertStats.alertsToday || 0,
+          sosCount: alertStats.sosCount || 0,
           tripsInProgress: 0,
         });
         setRecentAlerts([]);
@@ -138,7 +156,8 @@ const Dashboard = () => {
     const refreshInterval = setInterval(fetchDashboardData, 30000);
     
     return () => clearInterval(refreshInterval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // alertStats changes are handled within the effect
 
   const StatCard = (props) => {
     const { icon: Icon, title, value, description, color = "text-primary" } = props;
@@ -184,7 +203,7 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Status */}
+      {/* Header with WebSocket Status */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -193,6 +212,30 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          {/* WebSocket Connection Status */}
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${
+              isConnected ? 'bg-green-500' : 
+              isConnecting ? 'bg-yellow-500 animate-pulse' : 
+              'bg-red-500'
+            }`} />
+            <span className="text-sm text-muted-foreground">
+              {isConnected ? 'Connected' : 
+               isConnecting ? 'Connecting...' : 
+               `Disconnected ${connectionAttempts > 0 ? `(${connectionAttempts} attempts)` : ''}`}
+            </span>
+            {wsError && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={forceReconnect}
+                className="text-xs"
+              >
+                Retry
+              </Button>
+            )}
+          </div>
+          
           <ConnectionStatus isConnected={readyState === 1} lastUpdate={lastUpdate} />
           <RealTimeIndicator isLive={readyState === 1} />
         </div>
@@ -298,25 +341,47 @@ const Dashboard = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Live Alerts Feed</CardTitle>
-            <Badge variant="outline">
-              <Activity className="w-3 h-3 mr-1" />
-              Real-time
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={isConnected ? 'border-green-500 text-green-600' : 'border-red-500 text-red-600'}>
+                <Activity className={`w-3 h-3 mr-1 ${isConnected ? 'text-green-500' : 'text-red-500'}`} />
+                {isConnected ? 'Live' : 'Offline'}
+              </Badge>
+              {connectionAttempts > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  Retry {connectionAttempts}
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-80 overflow-y-auto">
-              {recentAlerts.length === 0 ? (
+              {/* Show real-time alerts first, then recent alerts */}
+              {[...realtimeAlerts, ...recentAlerts.filter(alert => !realtimeAlerts.find(rt => rt.id === alert.id))].length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p>No recent alerts</p>
+                  {!isConnected && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={connectWebSocket}
+                      className="mt-2"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Reconnect
+                    </Button>
+                  )}
                 </div>
               ) : (
-                recentAlerts.map((alert) => {
+                [...realtimeAlerts, ...recentAlerts.filter(alert => !realtimeAlerts.find(rt => rt.id === alert.id))].slice(0, 10).map((alert, index) => {
                   const SeverityIcon = getSeverityIcon(alert.type);
+                  const isRealtime = index < realtimeAlerts.length;
                   return (
                     <div
-                      key={alert.id}
-                      className="flex items-center space-x-3 p-3 border border-border rounded-lg hover:bg-accent/50 transition-colors"
+                      key={`${alert.id}-${index}`}
+                      className={`flex items-center space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors ${
+                        isRealtime ? 'border-l-4 border-l-blue-500 bg-blue-50/50 dark:bg-blue-950/20' : 'border-border'
+                      }`}
                     >
                       <div className="flex-shrink-0">
                         <SeverityIcon className="w-5 h-5 text-muted-foreground" />
@@ -329,6 +394,11 @@ const Dashboard = () => {
                           <Badge variant={getSeverityColor(alert.severity)} className="text-xs">
                             {alert.severity}
                           </Badge>
+                          {isRealtime && (
+                            <Badge variant="outline" className="text-xs border-blue-500 text-blue-600">
+                              Live
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">
                           {alert.tourist_name || `Tourist ${alert.tourist_id}`}
@@ -336,7 +406,7 @@ const Dashboard = () => {
                         <div className="flex items-center space-x-1 text-xs text-muted-foreground mt-1">
                           <Clock className="w-3 h-3" />
                           <span>
-                            {new Date(alert.created_at).toLocaleTimeString()}
+                            {new Date(alert.created_at || alert.timestamp).toLocaleTimeString()}
                           </span>
                         </div>
                       </div>

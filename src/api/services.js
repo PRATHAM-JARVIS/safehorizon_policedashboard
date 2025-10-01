@@ -2,6 +2,7 @@ import { apiClient } from './client.js';
 
 // Authentication API
 export const authAPI = {
+  // Authority authentication
   loginAuthority: async (email, password) => {
     const response = await apiClient.post('/auth/login-authority', {
       email,
@@ -15,17 +16,7 @@ export const authAPI = {
     return response.data;
   },
 
-  getCurrentUser: async () => {
-    const response = await apiClient.get('/auth/me');
-    return response.data;
-  },
-
-  // Tourist auth endpoints
-  registerTourist: async (data) => {
-    const response = await apiClient.post('/auth/register', data);
-    return response.data;
-  },
-
+  // Tourist authentication
   loginTourist: async (email, password) => {
     const response = await apiClient.post('/auth/login', {
       email,
@@ -33,10 +24,28 @@ export const authAPI = {
     });
     return response.data;
   },
+
+  registerTourist: async (data) => {
+    const response = await apiClient.post('/auth/register', data);
+    return response.data;
+  },
+
+  // Common auth endpoints
+  getCurrentUser: async () => {
+    const response = await apiClient.get('/auth/me');
+    return response.data;
+  },
+
+  // Debug endpoint
+  debugRole: async () => {
+    const response = await apiClient.get('/debug/role');
+    return response.data;
+  },
 };
 
 // Tourist Management API
 export const touristAPI = {
+  // Authority endpoints for tourist monitoring
   getActiveTourists: async () => {
     const response = await apiClient.get('/tourists/active');
     return response.data;
@@ -52,7 +61,7 @@ export const touristAPI = {
     return response.data;
   },
 
-  // Trip management
+  // Trip management (tourist endpoints)
   startTrip: async (data) => {
     const response = await apiClient.post('/trip/start', data);
     return response.data;
@@ -100,7 +109,8 @@ export const alertsAPI = {
     return response.data;
   },
 
-  acknowledgeIncident: async (alertId, notes) => {
+  // Incident management
+  acknowledgeIncident: async (alertId, notes = '') => {
     const response = await apiClient.post('/incident/acknowledge', {
       alert_id: alertId,
       notes,
@@ -108,22 +118,37 @@ export const alertsAPI = {
     return response.data;
   },
 
-  closeIncident: async (alertId, notes) => {
+  closeIncident: async (alertId, notes = '') => {
     const response = await apiClient.post('/incident/close', {
       alert_id: alertId,
       notes,
     });
     return response.data;
   },
+
+  // WebSocket subscription URL helper
+  getWebSocketURL: (token) => {
+    const wsBase = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
+    return `${wsBase}/api/alerts/subscribe?token=${token}`;
+  },
 };
 
 // Zones Management API
 export const zonesAPI = {
+  // Public zone endpoints
   listZones: async () => {
     const response = await apiClient.get('/zones/list');
     return response.data;
   },
 
+  getNearbyZones: async (lat, lon, radius = 5000) => {
+    const response = await apiClient.get('/zones/nearby', {
+      params: { lat, lon, radius }
+    });
+    return response.data;
+  },
+
+  // Authority zone management
   manageZones: async () => {
     const response = await apiClient.get('/zones/manage');
     return response.data;
@@ -138,29 +163,80 @@ export const zonesAPI = {
     const response = await apiClient.delete(`/zones/${zoneId}`);
     return response.data;
   },
+
+  // Public heatmap data
+  getPublicHeatmap: async (bounds, zoneType = 'all') => {
+    const response = await apiClient.get('/heatmap/zones/public', {
+      params: { ...bounds, zone_type: zoneType }
+    });
+    return response.data;
+  },
 };
 
 // E-FIR Management API
 export const efirAPI = {
-  generateEFIR: async (alertId, incidentType, description) => {
+  generateEFIR: async (alertId, notes = '') => {
     const response = await apiClient.post('/efir/generate', {
       alert_id: alertId,
-      incident_type: incidentType,
-      description,
+      notes,
     });
     return response.data;
   },
 
-  // Note: E-FIR listing endpoint not documented, may need to be added to backend
   listEFIRs: async (params = {}) => {
     try {
       const response = await apiClient.get('/efir/list', { params });
       return response.data;
-    } catch (error) {
+    } catch (err) {
       // Fallback if endpoint doesn't exist yet
-      console.warn('E-FIR list endpoint not available');
+      console.warn('E-FIR list endpoint not available', err);
       return [];
     }
+  },
+};
+
+// Heatmap & Analytics API
+export const heatmapAPI = {
+  // Comprehensive heatmap data (authority only)
+  getHeatmapData: async (bounds, options = {}) => {
+    const params = {
+      ...bounds,
+      hours_back: options.hoursBack || 24,
+      include_zones: options.includeZones !== false,
+      include_alerts: options.includeAlerts !== false,
+      include_tourists: options.includeTourists !== false,
+    };
+    const response = await apiClient.get('/heatmap/data', { params });
+    return response.data;
+  },
+
+  getZonesHeatmap: async (bounds, zoneType = 'all') => {
+    const response = await apiClient.get('/heatmap/zones', {
+      params: { ...bounds, zone_type: zoneType }
+    });
+    return response.data;
+  },
+
+  getAlertsHeatmap: async (bounds, options = {}) => {
+    const params = {
+      ...bounds,
+      alert_type: options.alertType,
+      severity: options.severity,
+      hours_back: options.hoursBack || 24,
+    };
+    const response = await apiClient.get('/heatmap/alerts', { params });
+    return response.data;
+  },
+
+  getTouristsHeatmap: async (bounds, options = {}) => {
+    const params = {
+      ...bounds,
+      hours_back: options.hoursBack || 24,
+      min_safety_score: options.minSafetyScore,
+      max_safety_score: options.maxSafetyScore,
+    };
+    const response = await apiClient.get('/heatmap/tourists', { params });
+    return response.data;
   },
 };
 
@@ -188,17 +264,17 @@ export const adminAPI = {
     return response.data;
   },
 
-  retrainModel: async (modelType, dataRangeDays = 30) => {
+  retrainModel: async (modelTypes = ['anomaly', 'sequence'], daysBack = 30) => {
     const response = await apiClient.post('/system/retrain-model', {
-      model_type: modelType,
-      data_range_days: dataRangeDays,
+      model_types: modelTypes,
+      days_back: daysBack,
     });
     return response.data;
   },
 
-  getAnalyticsDashboard: async (period = '7d') => {
+  getAnalyticsDashboard: async (days = 7) => {
     const response = await apiClient.get('/analytics/dashboard', {
-      params: { period }
+      params: { days }
     });
     return response.data;
   },
@@ -206,54 +282,66 @@ export const adminAPI = {
 
 // AI Services API
 export const aiAPI = {
-  checkGeofence: async (latitude, longitude, touristId) => {
+  // Geofencing
+  checkGeofence: async (lat, lon) => {
     const response = await apiClient.post('/ai/geofence/check', {
-      latitude,
-      longitude,
-      tourist_id: touristId,
+      lat,
+      lon,
     });
     return response.data;
   },
 
-  getNearbyZones: async (latitude, longitude, radiusKm = 1.0) => {
+  getNearbyZones: async (lat, lon, radius = 1000) => {
     const response = await apiClient.post('/ai/geofence/nearby', {
-      latitude,
-      longitude,
-      radius_km: radiusKm,
+      lat,
+      lon,
+    }, {
+      params: { radius }
     });
     return response.data;
   },
 
-  checkAnomalyPoint: async (data) => {
-    const response = await apiClient.post('/ai/anomaly/point', data);
+  // Anomaly detection
+  checkAnomalyPoint: async (lat, lon, speed, timestamp) => {
+    const response = await apiClient.post('/ai/anomaly/point', {
+      lat,
+      lon,
+      speed,
+      timestamp,
+    });
     return response.data;
   },
 
-  checkAnomalySequence: async (sequence) => {
+  checkAnomalySequence: async (points) => {
     const response = await apiClient.post('/ai/anomaly/sequence', {
-      sequence,
+      points,
     });
     return response.data;
   },
 
-  computeSafetyScore: async (touristId, currentLocation, movementData) => {
+  // Safety scoring
+  computeSafetyScore: async (lat, lon, locationHistory, currentLocationData, manualAdjustment = 0) => {
     const response = await apiClient.post('/ai/score/compute', {
-      tourist_id: touristId,
-      current_location: currentLocation,
-      movement_data: movementData,
+      lat,
+      lon,
+      location_history: locationHistory,
+      current_location_data: currentLocationData,
+      manual_adjustment: manualAdjustment,
     });
     return response.data;
   },
 
-  classifyAlert: async (alertType, locationData, context) => {
+  // Alert classification
+  classifyAlert: async (safetyScore, alertType, locationData) => {
     const response = await apiClient.post('/ai/classify/alert', {
+      safety_score: safetyScore,
       alert_type: alertType,
       location_data: locationData,
-      context,
     });
     return response.data;
   },
 
+  // Model status
   getModelsStatus: async () => {
     const response = await apiClient.get('/ai/models/status');
     return response.data;
@@ -262,20 +350,21 @@ export const aiAPI = {
 
 // Notification API
 export const notificationAPI = {
-  sendPushNotification: async (userId, title, body, data) => {
+  sendPushNotification: async (userId, title, body, token, data = {}) => {
     const response = await apiClient.post('/notify/push', {
       user_id: userId,
       title,
       body,
+      token,
       data,
     });
     return response.data;
   },
 
-  sendSMS: async (phoneNumber, message) => {
+  sendSMS: async (toNumber, body) => {
     const response = await apiClient.post('/notify/sms', {
-      phone_number: phoneNumber,
-      message,
+      to_number: toNumber,
+      body,
     });
     return response.data;
   },
@@ -290,31 +379,20 @@ export const notificationAPI = {
     return response.data;
   },
 
-  broadcastNotification: async (channels, touristId, title, message, priority) => {
+  broadcastNotification: async (title, body, targetGroup = 'all', data = {}) => {
     const response = await apiClient.post('/notify/broadcast', {
-      channels,
-      tourist_id: touristId,
       title,
-      message,
-      priority,
+      body,
+      target_group: targetGroup,
+      data,
     });
     return response.data;
   },
 
-  getNotificationHistory: async (userId, days = 7) => {
-    const response = await apiClient.get('/notify/history', {
-      params: { user_id: userId, days }
-    });
-    return response.data;
-  },
-
-  getNotificationSettings: async () => {
-    const response = await apiClient.get('/notify/settings');
-    return response.data;
-  },
-
-  updateNotificationSettings: async (settings) => {
-    const response = await apiClient.put('/notify/settings', settings);
+  getNotificationHistory: async (limit = 50, type = null) => {
+    const params = { limit };
+    if (type) params.type = type;
+    const response = await apiClient.get('/notify/history', { params });
     return response.data;
   },
 };

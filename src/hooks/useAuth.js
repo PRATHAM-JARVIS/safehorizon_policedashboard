@@ -16,7 +16,12 @@ export const useAuth = () => {
   } = useAuthStore();
 
   useEffect(() => {
-    initialize();
+    // Initialize auth state from localStorage on mount
+    try {
+      initialize();
+    } catch (err) {
+      console.error('Failed to initialize auth:', err);
+    }
   }, [initialize]);
 
   const isAdmin = user?.role === 'admin';

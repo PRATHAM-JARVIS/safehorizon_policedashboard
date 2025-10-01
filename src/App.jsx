@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.js';
 import { useAppStore } from './store/appStore.js';
+import { WebSocketProvider } from './contexts/WebSocketContext.jsx';
+import ErrorBoundary from './components/ui/ErrorBoundary.jsx';
 
 // Layout and Auth
 import Layout from './layouts/Layout.jsx';
@@ -18,6 +20,7 @@ import EFIRs from './pages/EFIRs.jsx';
 import Admin from './pages/Admin.jsx';
 import APITest from './pages/APITest.jsx';
 import CSSTest from './pages/CSSTest.jsx';
+import WebSocketTest from './pages/WebSocketTest.jsx';
 
 // CSS imports for Leaflet (if used)
 import 'leaflet/dist/leaflet.css';
@@ -32,17 +35,20 @@ function App() {
   }, [isDarkMode]);
 
   return (
-    <Router>
-      <div className="min-h-screen bg-background text-foreground">
-        <Routes>
+    <ErrorBoundary>
+      <Router>
+        <div className="min-h-screen bg-background text-foreground">
+          <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/css-test" element={<CSSTest />} />
           
-          {/* Protected Routes */}
+          {/* Protected Routes with WebSocket */}
           <Route path="/" element={
             <ProtectedRoute>
-              <Layout />
+              <WebSocketProvider>
+                <Layout />
+              </WebSocketProvider>
             </ProtectedRoute>
           }>
             <Route index element={<Navigate to="/dashboard" replace />} />
@@ -53,6 +59,7 @@ function App() {
             <Route path="zones" element={<Zones />} />
             <Route path="efirs" element={<EFIRs />} />
             <Route path="api-test" element={<APITest />} />
+            <Route path="ws-test" element={<WebSocketTest />} />
             <Route path="css-test" element={<CSSTest />} />
             <Route path="admin" element={
               <ProtectedRoute requireAdmin={true}>
@@ -65,10 +72,9 @@ function App() {
           <Route path="*" element={
             isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
           } />
-        </Routes>
-      </div>
-    </Router>
+          </Routes>
+        </div>
+      </Router>
+    </ErrorBoundary>
   );
-}
-
-export default App;
+}export default App;

@@ -28,7 +28,6 @@ const TouristDetail = () => {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(null);
 
   useEffect(() => {
     const fetchTouristData = async () => {
@@ -39,7 +38,6 @@ const TouristDetail = () => {
         setLocations(data.locations || []);
         setAlerts(data.recent_alerts || []);
         setError(null);
-        setLastUpdate(new Date().toISOString());
       } catch (error) {
         console.error('Failed to fetch tourist data:', error);
         setError(error);
