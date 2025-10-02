@@ -86,44 +86,43 @@ const Emergency = () => {
 
       alert(
         `Emergency Alert Broadcast Successfully!\n\n` +
-        `Alert ID: ${result.alert_id}\n` +
-        `Tourists Notified: ${result.tourists_notified}\n` +
-        `Push Notifications: ${result.notifications.push}\n` +
-        `SMS: ${result.notifications.sms}\n` +
-        `Email: ${result.notifications.email}`
+        `Alert ID: ${result.alert_id || 'N/A'}\n` +
+        `Tourists Notified: ${result.tourists_notified || 'N/A'}\n` +
+        `Push Notifications: ${result.notifications?.push || 'N/A'}\n` +
+        `SMS: ${result.notifications?.sms || 'N/A'}\n` +
+        `Email: ${result.notifications?.email || 'N/A'}`
       );
     } catch (error) {
       console.error('Failed to broadcast emergency alert:', error);
-      alert('Failed to broadcast emergency alert. Please try again.');
+      
+      // Check if it's a 404 error (endpoint not implemented)
+      if (error.response?.status === 404) {
+        alert(
+          '⚠️ Emergency Broadcast Feature Not Available\n\n' +
+          'The emergency broadcast endpoint is not yet implemented in the backend.\n' +
+          'Please contact the system administrator to enable this feature.'
+        );
+      } else {
+        alert(
+          'Failed to broadcast emergency alert.\n\n' +
+          `Error: ${error.response?.data?.detail || error.message}\n\n` +
+          'Please try again or contact support.'
+        );
+      }
     } finally {
       setBroadcasting(false);
     }
   };
 
-  const getSeverityColor = (severity) => {
-    switch (severity) {
-      case 'critical': return 'destructive';
-      case 'high': return 'warning';
-      case 'medium': return 'secondary';
-      default: return 'outline';
-    }
-  };
+
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center space-x-2">
-            <Radio className="w-8 h-8 text-red-600" />
-            <span>Emergency Broadcast</span>
-          </h1>
-          <p className="text-muted-foreground">
-            Send emergency alerts to tourists in specific areas
-          </p>
-        </div>
+        <h1 className="text-3xl font-bold">Emergency Broadcast</h1>
         <Badge variant="destructive" className="text-lg px-3 py-1">
-          Emergency Services
+          Emergency
         </Badge>
       </div>
 

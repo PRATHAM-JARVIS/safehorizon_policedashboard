@@ -119,75 +119,112 @@ const Dashboard = () => {
       try {
         setLoading(true);
         
-        // Fetch dashboard statistics from dedicated endpoint
+        // Fetch platform statistics using the new admin API
         let dashboardStats = null;
         try {
-          dashboardStats = await adminAPI.getDashboardStats('24h');
-          console.log('Dashboard stats fetched:', dashboardStats);
+          dashboardStats = await adminAPI.getPlatformStats('24h');
+          console.log('Platform stats fetched:', dashboardStats);
         } catch (statsErr) {
-          console.warn('Dashboard stats endpoint not available, falling back to manual calculation:', statsErr);
+          console.warn('Platform stats endpoint not available, falling back to manual calculation:', statsErr);
         }
 
-        // If dashboard stats available, use them directly
-        if (dashboardStats && (dashboardStats.tourists || dashboardStats.alerts)) {
+        // If platform stats available, use them directly
+        if (dashboardStats && (dashboardStats.users || dashboardStats.activity || dashboardStats.safety)) {
           setStats({
-            activeTourists: dashboardStats.tourists?.active_now || 0,
-            alertsToday: dashboardStats.alerts?.total || 0,
-            sosCount: dashboardStats.alerts?.by_type?.sos || 0,
-            tripsInProgress: dashboardStats.incidents?.open || 0,
+            activeTourists: dashboardStats.users?.active_tourists || 0,
+            alertsToday: dashboardStats.safety?.total_alerts || 0,
+            sosCount: dashboardStats.safety?.sos_triggered || 0,
+            tripsInProgress: dashboardStats.activity?.active_trips || 0,
           });
 
-          // Use trends data if available
+          // Enhanced chart data with proper structure
           if (dashboardStats.alert_trends) {
             const chartData = dashboardStats.alert_trends.map(trend => ({
-              name: new Date(trend.hour).toLocaleDateString('en-US', { weekday: 'short' }),
-              alerts: trend.count,
-              resolved: 0, // Not provided by API
-              sos: 0,
-              geofence: 0,
-              anomaly: 0
+              name: new Date(trend.date).toLocaleDateString('en-US', { weekday: 'short' }),
+              alerts: trend.total || 0,
+              resolved: trend.resolved || 0,
+              sos: trend.sos || 0,
+              geofence: trend.geofence || 0,
+              anomaly: trend.anomaly || 0
             }));
             setAlertsChartData(chartData);
           }
 
-          // Use risk distribution if available
-          if (dashboardStats.risk_distribution) {
-            const scoreData = Object.entries(dashboardStats.risk_distribution).map(([key, value]) => ({
-              score: key,
-              count: value,
-              color: key === 'critical' ? '#dc2626' : key === 'high' ? '#ef4444' : key === 'medium' ? '#f59e0b' : '#10b981'
+          // Enhanced safety score distribution with risk levels
+          if (dashboardStats.safety?.score_distribution) {
+            const scoreData = Object.entries(dashboardStats.safety.score_distribution).map(([range, count]) => ({
+              score: range,
+              count: count,
+              color: range.includes('90-100') ? '#10b981' : 
+                     range.includes('80-89') ? '#22c55e' :
+                     range.includes('70-79') ? '#84cc16' :
+                     range.includes('60-69') ? '#eab308' :
+                     range.includes('50-59') ? '#f59e0b' :
+                     range.includes('40-49') ? '#ef4444' : '#dc2626'
             }));
             setSafetyScoreData(scoreData);
           }
         } else {
-          // Fallback to manual data fetching
-          // Fetch active tourists with error handling
+          // Enhanced fallback with better data handling
+          // Fetch active tourists with safety scores and risk levels
           let tourists = [];
           try {
             const touristResponse = await touristAPI.getActiveTourists();
-            const touristData = touristResponse.tourists || touristResponse.data || touristResponse || [];
-            tourists = Array.isArray(touristData) ? touristData : [];
-            console.log('Fetched tourists:', tourists.length);
+            
+            tourists = Array.isArray(touristResponse) ? touristResponse : [];
+            
+            console.log(`Fetched tourists: ${tourists.length} items from API`);
+            
+            // Enrich tourist data with current location and safety info
+            const enrichedTourists = await Promise.all(
+              tourists.slice(0, 50).map(async (tourist) => { // Limit to avoid too many requests
+                try {
+                  const locationData = await touristAPI.getCurrentLocation(tourist.id);
+                  return {
+                    ...tourist,
+                    current_location: locationData.location,
+                    safety_score: locationData.safety_score || tourist.safety_score || 75,
+                    risk_level: locationData.zone_status?.risk_level || 'low',
+                    last_seen: locationData.last_seen || tourist.last_seen,
+                    status: locationData.location?.status || 'unknown'
+                  };
+                } catch (err) {
+                  console.warn(`Failed to get location for tourist ${tourist.id}:`, err);
+                  return {
+                    ...tourist,
+                    safety_score: tourist.safety_score || 75,
+                    risk_level: 'unknown',
+                    status: 'unknown'
+                  };
+                }
+              })
+            );
+            
+            setTourists(enrichedTourists);
           } catch (err) {
             console.error('Failed to fetch tourists:', err);
             tourists = [];
           }
           
-          // Fetch recent alerts (last 7 days for charts) with error handling
+          // Fetch comprehensive alerts with enhanced filtering
           let alerts = [];
           let alertsForChart = [];
           try {
-            // Fetch last 7 days for chart data
-            const alertResponse = await alertsAPI.getRecentAlerts({ hours_back: 168 });
-            const alertData = alertResponse.alerts || alertResponse.data || alertResponse || [];
-            alertsForChart = Array.isArray(alertData) ? alertData : [];
-            console.log('Fetched alerts for chart:', alertsForChart.length);
+            // Get alerts with severity and type information
+            const alertResponse = await alertsAPI.getRecentAlerts({ 
+              hours: 168, // Last 7 days for charts
+              limit: 500,
+              include_resolved: true 
+            });
+            alertsForChart = Array.isArray(alertResponse) ? alertResponse : [];
+            console.log('Fetched enhanced alerts:', alertsForChart.length);
             
-            // Get last 24 hours for recent alerts display
+            // Filter for today's alerts with improved criteria
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
             alerts = alertsForChart.filter(alert => {
               const alertTime = new Date(alert.created_at || alert.timestamp);
-              const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-              return alertTime >= dayAgo;
+              return alertTime >= todayStart;
             });
           } catch (err) {
             console.error('Failed to fetch alerts:', err);
@@ -195,37 +232,40 @@ const Dashboard = () => {
             alertsForChart = [];
           }
           
-          // Calculate chart data from real alerts
+          // Enhanced chart data calculation with proper alert types
           const chartData = calculateAlertsChartData(alertsForChart);
           setAlertsChartData(chartData);
           
-          // Calculate safety score distribution
+          // Enhanced safety score distribution from real tourist data
           const scoreData = calculateSafetyScoreData(tourists);
           setSafetyScoreData(scoreData);
           
-          // Merge API stats with WebSocket real-time stats
-          setStats({
-            activeTourists: alertStats.activeTourists || tourists.length || 0,
-            alertsToday: (alerts.filter(alert => {
-              const today = new Date();
-              const alertDate = new Date(alert.created_at || alert.timestamp);
-              return alertDate.toDateString() === today.toDateString();
-            }).length) + (alertStats.alertsToday || 0),
-            sosCount: (alerts.filter(alert => alert.type === 'sos' || alert.type === 'sos_alert').length) + (alertStats.sosCount || 0),
-            tripsInProgress: tourists.filter(t => t.active_trip || t.status === 'active').length || 0,
-          });
+          // Enhanced stats calculation with real-time WebSocket data
+          const enhancedStats = {
+            activeTourists: tourists.length + (alertStats.activeTourists || 0),
+            alertsToday: alerts.length + (alertStats.alertsToday || 0),
+            sosCount: alerts.filter(alert => 
+              alert.type === 'sos' || 
+              alert.type === 'sos_alert' || 
+              alert.alert_type === 'sos'
+            ).length + (alertStats.sosCount || 0),
+            tripsInProgress: tourists.filter(t => 
+              t.active_trip || 
+              t.status === 'active' || 
+              t.current_trip?.status === 'active'
+            ).length
+          };
           
-          setRecentAlerts(alerts);
-          setTourists(tourists);
+          setStats(enhancedStats);
+          setRecentAlerts(alerts.slice(0, 20)); // Show latest 20 alerts
         }
         
-        // Fetch zones with error handling
+        // Fetch zones for map display with enhanced data
         let zonesData = [];
         try {
-          const zonesResponse = await zonesAPI.listZones();
-          const zones = zonesResponse.zones || zonesResponse.data || zonesResponse || [];
-          zonesData = Array.isArray(zones) ? zones : [];
-          console.log('Fetched zones:', zonesData.length);
+          const zonesResponse = await zonesAPI.manageZones();
+          zonesData = Array.isArray(zonesResponse) ? zonesResponse : (zonesResponse.zones || []);
+          console.log('Fetched zones for map:', zonesData.length);
         } catch (err) {
           console.error('Failed to fetch zones:', err);
           zonesData = [];
@@ -236,7 +276,7 @@ const Dashboard = () => {
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
         setError(error.message || 'Failed to connect to backend API');
-        // Show user-friendly error message
+        // Graceful fallback with WebSocket data only
         setStats({
           activeTourists: alertStats.activeTourists || 0,
           alertsToday: alertStats.alertsToday || 0,
@@ -253,8 +293,12 @@ const Dashboard = () => {
 
     fetchDashboardData();
     
-    // Set up periodic refresh for dashboard data (every 30 seconds)
-    const refreshInterval = setInterval(fetchDashboardData, 30000);
+    // Enhanced refresh interval with better error handling
+    const refreshInterval = setInterval(() => {
+      if (!loading) {
+        fetchDashboardData();
+      }
+    }, 30000);
     
     return () => clearInterval(refreshInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -264,18 +308,28 @@ const Dashboard = () => {
     const { icon: Icon, title, value, description, color = "text-primary" } = props;
     
     return (
-      <Card>
+      <Card className="hover:shadow-md transition-all duration-200 border-l-4 border-l-transparent hover:border-l-primary/50">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">{title}</p>
-              <p className={`text-2xl font-bold ${color}`}>{loading ? '...' : value}</p>
-              {description && (
-                <p className="text-xs text-muted-foreground mt-1">{description}</p>
-              )}
-            </div>
-            <div className={`p-3 rounded-full bg-${color.includes('red') ? 'red' : color.includes('yellow') ? 'yellow' : 'primary'}/10`}>
-              <Icon className={`h-6 w-6 ${color}`} />
+            <div className="flex-1">
+              <div className="flex items-center space-x-3 mb-3">
+                <div className={`p-2.5 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border shadow-sm`}>
+                  <Icon className={`h-5 w-5 ${color}`} />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
+              </div>
+              <div className="space-y-1">
+                <p className={`text-3xl font-bold tracking-tight ${color}`}>
+                  {loading ? (
+                    <span className="animate-pulse">...</span>
+                  ) : (
+                    typeof value === 'number' ? value.toLocaleString() : value
+                  )}
+                </p>
+                {description && (
+                  <p className="text-sm text-muted-foreground">{description}</p>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -303,99 +357,128 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header with WebSocket Status */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Real-time monitoring of tourist safety and system alerts
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          {/* WebSocket Connection Status */}
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${
-              isConnected ? 'bg-green-500' : 
-              isConnecting ? 'bg-yellow-500 animate-pulse' : 
-              'bg-red-500'
-            }`} />
-            <span className="text-sm text-muted-foreground">
-              {isConnected ? 'Connected' : 
-               isConnecting ? 'Connecting...' : 
-               `Disconnected ${connectionAttempts > 0 ? `(${connectionAttempts} attempts)` : ''}`}
-            </span>
-            {wsError && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={forceReconnect}
-                className="text-xs"
-              >
-                Retry
-              </Button>
-            )}
+    <div className="space-y-8">
+      {/* Enhanced Header with WebSocket Status */}
+      <div className="bg-gradient-to-r from-background to-muted/30 -mx-6 px-6 py-6 rounded-lg border">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">
+              Dashboard
+            </h1>
+            <p className="text-muted-foreground text-lg">
+              Real-time monitoring of tourist safety and system alerts
+            </p>
+          </div>
+          <div className="flex items-center gap-6">
+            {/* WebSocket Connection Status with improved design */}
+            <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-background/80 border shadow-sm">
+              <div className={`w-2.5 h-2.5 rounded-full ${
+                isConnected ? 'bg-green-500 shadow-green-500/50 shadow-lg' : 
+                isConnecting ? 'bg-yellow-500 animate-pulse shadow-yellow-500/50 shadow-lg' : 
+                'bg-red-500 shadow-red-500/50 shadow-lg'
+              }`} />
+              <span className="text-sm font-medium">
+                {isConnected ? 'Live Connection' : 
+                 isConnecting ? 'Connecting...' : 
+                 `Offline ${connectionAttempts > 0 ? `(${connectionAttempts} attempts)` : ''}`}
+              </span>
+              {wsError && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={forceReconnect}
+                  className="text-xs h-6 px-2"
+                >
+                  Retry
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Error State */}
+      {/* Enhanced Error State */}
       {error && !loading && (
-        <div className="text-center py-8">
-          <AlertTriangle className="w-12 h-12 mx-auto text-destructive mb-4" />
-          <h3 className="text-lg font-medium mb-2">Dashboard Connection Error</h3>
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>Retry</Button>
-        </div>
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="p-8">
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="p-3 rounded-full bg-destructive/10">
+                  <AlertTriangle className="w-8 h-8 text-destructive" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-destructive">Dashboard Connection Error</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">{error}</p>
+              </div>
+              <Button onClick={() => window.location.reload()} className="mt-4">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry Connection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Loading State */}
+      {/* Enhanced Loading State */}
       {loading && (
-        <div className="flex justify-center items-center py-12">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <Card>
+          <CardContent className="p-12">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+              <p className="text-muted-foreground font-medium">Loading dashboard data...</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Enhanced Stats Cards */}
+      {!loading && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            icon={Users}
+            title="Active Tourists"
+            value={stats.activeTourists}
+            description="Currently being tracked"
+            color="text-blue-600"
+          />
+          <StatCard
+            icon={AlertTriangle}
+            title="Alerts Today"
+            value={stats.alertsToday}
+            description="Require attention"
+            color="text-amber-600"
+          />
+          <StatCard
+            icon={Phone}
+            title="SOS Alerts"
+            value={stats.sosCount}
+            description="Emergency situations"
+            color="text-red-600"
+          />
+          <StatCard
+            icon={Route}
+            title="Active Trips"
+            value={stats.tripsInProgress}
+            description="Trips in progress"
+            color="text-green-600"
+          />
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          icon={Users}
-          title="Active Tourists"
-          value={stats.activeTourists}
-          description="Currently being tracked"
-          color="text-blue-600"
-        />
-        <StatCard
-          icon={AlertTriangle}
-          title="Alerts Today"
-          value={stats.alertsToday}
-          description="Require attention"
-          color="text-yellow-600"
-        />
-        <StatCard
-          icon={Phone}
-          title="SOS Alerts"
-          value={stats.sosCount}
-          description="Emergency situations"
-          color="text-red-600"
-        />
-        <StatCard
-          icon={Route}
-          title="Active Trips"
-          value={stats.tripsInProgress}
-          description="Trips in progress"
-          color="text-green-600"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Alerts Chart */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Weekly Alert Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+      {/* Enhanced Charts and Alerts Section */}
+      {!loading && !error && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Alerts Chart */}
+          <Card className="xl:col-span-2">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center space-x-2">
+                <Activity className="w-5 h-5 text-primary" />
+                <span>Weekly Alert Summary</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
               <BarChart data={alertsChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
@@ -433,25 +516,33 @@ const Dashboard = () => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Live Alerts Feed */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Live Alerts Feed</CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={isConnected ? 'border-green-500 text-green-600' : 'border-red-500 text-red-600'}>
-                <Activity className={`w-3 h-3 mr-1 ${isConnected ? 'text-green-500' : 'text-red-500'}`} />
-                {isConnected ? 'Live' : 'Offline'}
-              </Badge>
-              {connectionAttempts > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  Retry {connectionAttempts}
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
+      {/* Enhanced Alerts Feed and Map Section */}
+      {!loading && !error && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Live Alerts Feed */}
+          <Card className="xl:col-span-1">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  <span>Live Alerts Feed</span>
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={isConnected ? 'border-green-500 text-green-600' : 'border-red-500 text-red-600'}>
+                    <Activity className={`w-3 h-3 mr-1 ${isConnected ? 'text-green-500' : 'text-red-500'}`} />
+                    {isConnected ? 'Live' : 'Offline'}
+                  </Badge>
+                  {connectionAttempts > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      Retry {connectionAttempts}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {/* Show real-time alerts first, then recent alerts */}
@@ -526,20 +617,19 @@ const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Map Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <MapPin className="w-5 h-5" />
-            <span>Live Map Overview</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MapComponent
-            center={[35.6762, 139.6503]}
-            zoom={13}
+        {/* Enhanced Map Overview */}
+        <Card className="xl:col-span-2">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center space-x-2">
+              <MapPin className="w-5 h-5 text-blue-600" />
+              <span>Live Map Overview</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MapComponent
+              center={[28.6139, 77.2090]}
+              zoom={11}
             tourists={tourists}
             alerts={recentAlerts.filter(alert => alert.coordinates)}
             zones={zones}
@@ -553,29 +643,36 @@ const Dashboard = () => {
           />
         </CardContent>
       </Card>
+      </div>
+      )}
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button className="h-20 flex flex-col space-y-2" variant="outline">
-              <Users className="w-6 h-6" />
-              <span>View All Tourists</span>
-            </Button>
-            <Button className="h-20 flex flex-col space-y-2" variant="outline">
-              <MapPin className="w-6 h-6" />
-              <span>Manage Zones</span>
-            </Button>
-            <Button className="h-20 flex flex-col space-y-2" variant="outline">
-              <AlertTriangle className="w-6 h-6" />
-              <span>Review Alerts</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Enhanced Quick Actions */}
+      {!loading && !error && (
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center space-x-2">
+              <Activity className="w-5 h-5 text-primary" />
+              <span>Quick Actions</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Button className="h-20 flex flex-col space-y-2 transition-all duration-200 hover:scale-105" variant="outline">
+                <Users className="w-6 h-6 text-blue-600" />
+                <span className="font-medium">View All Tourists</span>
+              </Button>
+              <Button className="h-20 flex flex-col space-y-2 transition-all duration-200 hover:scale-105" variant="outline">
+                <MapPin className="w-6 h-6 text-green-600" />
+                <span className="font-medium">Manage Zones</span>
+              </Button>
+              <Button className="h-20 flex flex-col space-y-2 transition-all duration-200 hover:scale-105" variant="outline">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+                <span className="font-medium">Review Alerts</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Alert Detail Modal */}
       <AlertDetailModal

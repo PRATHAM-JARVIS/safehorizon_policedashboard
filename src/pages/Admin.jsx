@@ -18,8 +18,7 @@ import {
   UserX,
   UserCheck,
   Cpu,
-  HardDrive,
-  Wifi
+  HardDrive
 } from 'lucide-react';
 
 const Admin = () => {
@@ -29,8 +28,8 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
-  const [retrainingModel, setRetrainingModel] = useState(false);
-  const [performanceMetrics, setPerformanceMetrics] = useState(null);
+  const [_retrainingModel, setRetrainingModel] = useState(false);
+  const [_performanceMetrics, setPerformanceMetrics] = useState(null);
 
   useEffect(() => {
     const fetchAdminData = async () => {
@@ -39,12 +38,13 @@ const Admin = () => {
         
         // Fetch system status
         const statusResponse = await adminAPI.getSystemStatus();
-        const status = statusResponse.status || statusResponse.data || statusResponse;
+        const status = statusResponse.status || statusResponse;
         setSystemStatus(status);
         
         // Fetch users list
         const usersResponse = await adminAPI.getUsersList();
-        const usersData = usersResponse.users || usersResponse.data || usersResponse || [];
+        // Handle documented response structure: users property
+        const usersData = usersResponse.users || [];
         const usersList = Array.isArray(usersData) ? usersData : [];
         setUsers(usersList);
         setFilteredUsers(usersList);
@@ -57,7 +57,6 @@ const Admin = () => {
           uptime: '0h 0m 0s',
           active_users: 0,
           database_status: 'disconnected',
-          redis_status: 'disconnected',
           ai_models_loaded: false,
           last_updated: new Date().toISOString(),
           error: 'Failed to connect to backend'
@@ -117,7 +116,7 @@ const Admin = () => {
     }
   };
 
-  const handleRetrainModel = async (modelType = 'isolation_forest') => {
+  const _handleRetrainModel = async (modelType = 'isolation_forest') => {
     const confirmRetrain = window.confirm(`Are you sure you want to retrain the ${modelType} model? This may take several minutes.`);
     if (!confirmRetrain) return;
 
@@ -281,17 +280,6 @@ const Admin = () => {
               <div className="flex items-center space-x-2">
                 {getStatusIcon(systemStatus?.database_status)}
                 <span className="capitalize">{systemStatus?.database_status || 'Unknown'}</span>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="font-medium flex items-center space-x-2">
-                <Wifi className="w-4 h-4" />
-                <span>Redis Cache</span>
-              </h4>
-              <div className="flex items-center space-x-2">
-                {getStatusIcon(systemStatus?.redis_status)}
-                <span className="capitalize">{systemStatus?.redis_status || 'Unknown'}</span>
               </div>
             </div>
 

@@ -20,6 +20,39 @@ export const WebSocketProvider = ({ children }) => {
     AUTO_CONNECT: import.meta.env.VITE_WS_AUTO_CONNECT
   });
 
+  // Request notification permission on mount
+  React.useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        console.log('🔔 Notification permission:', permission);
+      });
+    }
+  }, []);
+
+  // Show browser notification for new alerts
+  const showNotification = useCallback((alertData) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification('🚨 SafeHorizon Alert', {
+        body: `${alertData.type || 'Alert'}: ${alertData.description || 'New alert received'}\nTourist: ${alertData.tourist_name || 'Unknown'}`,
+        icon: '/vite.svg',
+        badge: '/vite.svg',
+        tag: `alert-${alertData.id}`,
+        requireInteraction: alertData.severity === 'critical',
+        silent: false
+      });
+      
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+      
+      // Auto-close after 10 seconds for non-critical alerts
+      if (alertData.severity !== 'critical') {
+        setTimeout(() => notification.close(), 10000);
+      }
+    }
+  }, []);
+
   // WebSocket configuration with callbacks
   const wsOptions = {
     maxReconnectAttempts: parseInt(import.meta.env.VITE_WS_MAX_RECONNECT_ATTEMPTS) || 5,
@@ -35,17 +68,43 @@ export const WebSocketProvider = ({ children }) => {
       
       // Handle different message types
       if (data.type === 'alert' || data.type === 'new_alert') {
-        setRealtimeAlerts(prev => [data, ...prev.slice(0, 19)]); // Keep last 20 alerts
+        const alertWithTimestamp = { ...data, timestamp: data.timestamp || new Date().toISOString() };
+        setRealtimeAlerts(prev => [alertWithTimestamp, ...prev.slice(0, 19)]); // Keep last 20 alerts
         setAlertStats(prev => ({
           ...prev,
           alertsToday: prev.alertsToday + 1
         }));
+        
+        // Show browser notification
+        showNotification(alertWithTimestamp);
+        
+        // Play alert sound (optional)
+        try {
+          const audio = new Audio('/alert-sound.mp3');
+          audio.volume = 0.3;
+          audio.play().catch(() => console.log('Audio play failed'));
+        } catch {
+          console.log('Audio not available');
+        }
       } else if (data.type === 'sos' || data.type === 'emergency') {
-        setRealtimeAlerts(prev => [data, ...prev.slice(0, 19)]);
+        const alertWithTimestamp = { ...data, timestamp: data.timestamp || new Date().toISOString() };
+        setRealtimeAlerts(prev => [alertWithTimestamp, ...prev.slice(0, 19)]);
         setAlertStats(prev => ({
           ...prev,
           sosCount: prev.sosCount + 1
         }));
+        
+        // Show critical notification for SOS
+        showNotification({ ...alertWithTimestamp, severity: 'critical', description: 'SOS EMERGENCY' });
+        
+        // Play emergency sound
+        try {
+          const audio = new Audio('/emergency-sound.mp3');
+          audio.volume = 0.5;
+          audio.play().catch(() => console.log('Audio play failed'));
+        } catch {
+          console.log('Audio not available');
+        }
       } else if (data.type === 'tourist_update') {
         setAlertStats(prev => ({
           ...prev,
@@ -114,7 +173,8 @@ export const WebSocketProvider = ({ children }) => {
     
     // Alert methods
     clearRealtimeAlerts,
-    updateAlertStats
+    updateAlertStats,
+    showNotification
   };
 
   return (

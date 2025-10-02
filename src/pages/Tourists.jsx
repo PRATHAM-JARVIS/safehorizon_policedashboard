@@ -30,9 +30,8 @@ const Tourists = () => {
       try {
         setLoading(true);
         const response = await touristAPI.getActiveTourists();
-        // Handle different response structures
-        const data = response.tourists || response.data || response || [];
-        const touristsList = Array.isArray(data) ? data : [];
+        // Handle documented response structure: direct array
+        const touristsList = Array.isArray(response) ? response : [];
         setTourists(touristsList);
         setFilteredTourists(touristsList);
       } catch (error) {
@@ -116,20 +115,10 @@ const Tourists = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center space-x-2">
-            <Users className="w-8 h-8" />
-            <span>Tourist Management</span>
-          </h1>
-          <p className="text-muted-foreground">
-            Monitor and track tourist activities and safety status
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Badge variant="outline" className="text-lg px-3 py-1">
-            {filteredTourists.length} Active
-          </Badge>
-        </div>
+        <h1 className="text-3xl font-bold">Tourists</h1>
+        <Badge variant="outline" className="text-lg px-3 py-1">
+          {filteredTourists.length}
+        </Badge>
       </div>
 
       {/* Filters */}
@@ -231,10 +220,7 @@ const Tourists = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-1">
-                        <Activity className="w-4 h-4 text-green-500" />
-                        <span className="text-sm text-green-600">Active</span>
-                      </div>
+                      <span className="text-sm text-green-600">Active</span>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">

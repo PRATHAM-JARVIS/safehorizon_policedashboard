@@ -15,7 +15,7 @@ import {
   Calendar,
   User,
   MapPin,
-  Shield
+  CheckCircle
 } from 'lucide-react';
 
 const EFIRs = () => {
@@ -30,13 +30,12 @@ const EFIRs = () => {
     const fetchEFIRs = async () => {
       try {
         setLoading(true);
-        // Use the proper authority E-FIR list endpoint
+        // Use the documented authority E-FIR list endpoint
         const response = await efirAPI.listEFIRs({ limit: 100, offset: 0 });
-        // Handle different response structures
-        const data = response.efir_records || response.efirs || response.data || response || [];
-        const efirsList = Array.isArray(data) ? data : [];
-        setEfirs(efirsList);
-        setFilteredEfirs(efirsList);
+        // Handle documented response structure: efir_records property
+        const efirsList = response.efir_records || [];
+        setEfirs(Array.isArray(efirsList) ? efirsList : []);
+        setFilteredEfirs(Array.isArray(efirsList) ? efirsList : []);
       } catch (error) {
         console.error('Failed to fetch E-FIRs:', error);
         // Show error state - E-FIR endpoint may not be fully implemented yet
@@ -138,18 +137,9 @@ const EFIRs = () => {
     <div className="space-y-6">
       {/* Header with Search */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <FileText className="w-6 h-6" />
-            E-FIR Records
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Blockchain-secured incident reports
-          </p>
-        </div>
+        <h1 className="text-3xl font-bold">E-FIR Records</h1>
         <Badge variant="outline" className="text-sm px-4 py-2 w-fit">
-          <Shield className="w-4 h-4 mr-2" />
-          {filteredEfirs.length} Total Records
+          {filteredEfirs.length}
         </Badge>
       </div>
 
@@ -174,7 +164,7 @@ const EFIRs = () => {
                 <p className="text-xs text-muted-foreground">Verified</p>
                 <p className="text-2xl font-bold">{efirs.filter(e => e.is_verified).length}</p>
               </div>
-              <Shield className="w-8 h-8 text-green-500 opacity-20" />
+              <CheckCircle className="w-8 h-8 text-green-500 opacity-20" />
             </div>
           </CardContent>
         </Card>

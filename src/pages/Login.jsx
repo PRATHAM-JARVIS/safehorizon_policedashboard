@@ -39,78 +39,90 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-primary/10 p-3 rounded-full">
-              <Shield className="h-8 w-8 text-primary" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl font-bold">SafeHorizon Authority</CardTitle>
-          <p className="text-muted-foreground">Sign in to access the police dashboard</p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="officer@police.com"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                disabled={isLoading}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                disabled={isLoading}
-              />
-            </div>
-
-            {error && (
-              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
-                {error}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Enhanced Login Card */}
+        <Card className="shadow-2xl border-border/50 backdrop-blur-sm bg-card/95">
+          <CardHeader className="text-center pb-8 pt-8">
+            <div className="flex justify-center mb-6">
+              <div className="bg-gradient-to-br from-primary to-primary/80 p-4 rounded-2xl shadow-lg">
+                <Shield className="h-10 w-10 text-primary-foreground" />
               </div>
-            )}
+            </div>
+            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text mb-2">
+              SafeHorizon Authority
+            </CardTitle>
+            <p className="text-muted-foreground text-base">Sign in to access the police dashboard</p>
+          </CardHeader>
+          <CardContent className="px-8 pb-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-3">
+                <Label htmlFor="email" className="text-base">Email Address</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="officer@police.com"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                  className="text-base"
+                />
+              </div>
+              
+              <div className="space-y-3">
+                <Label htmlFor="password" className="text-base">Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                  className="text-base"
+                />
+              </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Signing in...</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <Lock className="h-4 w-4" />
-                  <span>Sign In</span>
+              {error && (
+                <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm p-4 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-destructive rounded-full flex-shrink-0"></div>
+                    <span className="font-medium">{error}</span>
+                  </div>
                 </div>
               )}
-            </Button>
-          </form>
 
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>Authorized personnel only</p>
-            <p className="mt-1">Contact IT support for account assistance</p>
-          </div>
-        </CardContent>
-      </Card>
+              <Button
+                type="submit"
+                className="w-full h-12 text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="flex items-center space-x-3">
+                    <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></div>
+                    <span>Signing in...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-3">
+                    <Lock className="h-5 w-5" />
+                    <span>Sign In</span>
+                  </div>
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-8 text-center">
+              <div className="bg-muted/30 rounded-lg p-4">
+                <p className="text-sm text-muted-foreground font-medium mb-1">Authorized personnel only</p>
+                <p className="text-xs text-muted-foreground">Contact IT support for account assistance</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

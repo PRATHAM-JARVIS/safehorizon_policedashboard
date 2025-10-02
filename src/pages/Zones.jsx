@@ -3,7 +3,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card.
 import { Button } from '../components/ui/button.jsx';
 import { Input, Label } from '../components/ui/input.jsx';
 import { Badge } from '../components/ui/badge.jsx';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table.jsx';
 import { zonesAPI } from '../api/services.js';
 import MapComponent from '../components/ui/Map.jsx';
 import {
@@ -17,7 +16,9 @@ import {
   Search,
   Eye,
   Save,
-  X
+  X,
+  Filter,
+  SortAsc
 } from 'lucide-react';
 
 const Zones = () => {
@@ -25,7 +26,11 @@ const Zones = () => {
   const [filteredZones, setFilteredZones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [selectedZone, setSelectedZone] = useState(null);
+  const [showZoneDetail, setShowZoneDetail] = useState(false);
   const [newZone, setNewZone] = useState({
     name: '',
     description: '',
@@ -39,15 +44,13 @@ const Zones = () => {
     const fetchZones = async () => {
       try {
         setLoading(true);
-        const response = await zonesAPI.listZones();
-        // Handle different response structures
-        const data = response.zones || response.data || response || [];
-        const zonesList = Array.isArray(data) ? data : [];
-        setZones(zonesList);
-        setFilteredZones(zonesList);
+        const response = await zonesAPI.manageZones();
+        // Handle documented response structure: zones property
+        const zonesList = response.zones || [];
+        setZones(Array.isArray(zonesList) ? zonesList : []);
+        setFilteredZones(Array.isArray(zonesList) ? zonesList : []);
       } catch (error) {
         console.error('Failed to fetch zones:', error);
-        // Show error state
         setZones([]);
         setFilteredZones([]);
       } finally {
@@ -56,25 +59,42 @@ const Zones = () => {
     };
 
     fetchZones();
-    
-    // Set up periodic refresh for zones (every 60 seconds - zones change less frequently)
     const refreshInterval = setInterval(fetchZones, 60000);
-    
     return () => clearInterval(refreshInterval);
   }, []);
 
   useEffect(() => {
+    let filtered = zones;
+
+    // Filter by search term
     if (searchTerm) {
-      const filtered = zones.filter(zone =>
+      filtered = filtered.filter(zone =>
         zone.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        zone.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        zone.type?.toLowerCase().includes(searchTerm.toLowerCase())
+        zone.description?.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      setFilteredZones(filtered);
-    } else {
-      setFilteredZones(zones);
     }
-  }, [zones, searchTerm]);
+
+    // Filter by type
+    if (filterType !== 'all') {
+      filtered = filtered.filter(zone => (zone.type || zone.zone_type) === filterType);
+    }
+
+    // Sort
+    filtered = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return (a.name || '').localeCompare(b.name || '');
+        case 'type':
+          return (a.type || a.zone_type || '').localeCompare(b.type || b.zone_type || '');
+        case 'created':
+          return new Date(b.created_at) - new Date(a.created_at);
+        default:
+          return 0;
+      }
+    });
+
+    setFilteredZones(filtered);
+  }, [zones, searchTerm, filterType, sortBy]);
 
   const getZoneTypeColor = (type) => {
     switch (type) {
@@ -103,8 +123,6 @@ const Zones = () => {
 
     try {
       setCreating(true);
-      
-      // Call real API to create zone
       const createdZone = await zonesAPI.createZone({
         name: newZone.name,
         description: newZone.description,
@@ -113,8 +131,6 @@ const Zones = () => {
       });
       
       setZones(prev => [...prev, createdZone]);
-      
-      // Reset form
       setNewZone({
         name: '',
         description: '',
@@ -143,7 +159,6 @@ const Zones = () => {
 
   const handleDeleteZone = async (zoneId) => {
     if (!confirm('Are you sure you want to delete this zone?')) return;
-
     try {
       await zonesAPI.deleteZone(zoneId);
       setZones(prev => prev.filter(zone => zone.id !== zoneId));
@@ -159,6 +174,16 @@ const Zones = () => {
     return 'Unknown';
   };
 
+  const handleViewZone = (zone) => {
+    setSelectedZone(zone);
+    setShowZoneDetail(true);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedZone(null);
+    setShowZoneDetail(false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -168,326 +193,396 @@ const Zones = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center space-x-2">
-            <Map className="w-8 h-8" />
-            <span>Zone Management</span>
-          </h1>
-          <p className="text-muted-foreground">
-            Create and manage restricted and safe zones for tourist monitoring
-          </p>
+    <div className="h-[calc(100vh-100px)] flex flex-col overflow-hidden">
+      {/* Compact Header */}
+      <div className="flex-shrink-0 mb-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-6">
+            <h1 className="text-2xl font-bold">Zone Management</h1>
+            {/* Inline Stats */}
+            <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                <span className="text-muted-foreground">Restricted:</span>
+                <span className="font-semibold text-red-600">
+                  {zones.filter(z => (z.type || z.zone_type) === 'restricted').length}
+                </span>
+              </div>
+              <div className="w-px h-4 bg-border" />
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                <span className="text-muted-foreground">Risky:</span>
+                <span className="font-semibold text-yellow-600">
+                  {zones.filter(z => (z.type || z.zone_type) === 'risky').length}
+                </span>
+              </div>
+              <div className="w-px h-4 bg-border" />
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <span className="text-muted-foreground">Safe:</span>
+                <span className="font-semibold text-green-600">
+                  {zones.filter(z => (z.type || z.zone_type) === 'safe').length}
+                </span>
+              </div>
+            </div>
+          </div>
+          <Button onClick={() => setShowCreateForm(true)} size="sm">
+            <Plus className="w-4 h-4 mr-2" />
+            Create Zone
+          </Button>
         </div>
-        <Button onClick={() => setShowCreateForm(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Create Zone
-        </Button>
-      </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className="bg-red-100 dark:bg-red-900 p-2 rounded-full">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Restricted</p>
-                <p className="text-xl font-bold text-red-600">
-                  {zones.filter(z => z.type === 'restricted').length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className="bg-yellow-100 dark:bg-yellow-900 p-2 rounded-full">
-                <Shield className="w-5 h-5 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Risky</p>
-                <p className="text-xl font-bold text-yellow-600">
-                  {zones.filter(z => z.type === 'risky').length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <div className="bg-green-100 dark:bg-green-900 p-2 rounded-full">
-                <Info className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Safe</p>
-                <p className="text-xl font-bold text-green-600">
-                  {zones.filter(z => z.type === 'safe').length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Create Zone Form */}
-      {showCreateForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create New Zone</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreateZone} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="zoneName">Zone Name</Label>
+        {/* Create Zone Form - Compact */}
+        {showCreateForm && (
+          <Card className="border-primary mb-3">
+            <CardContent className="p-3">
+              <form onSubmit={handleCreateZone} className="space-y-2">
+                <div className="grid grid-cols-4 gap-2">
                   <Input
-                    id="zoneName"
-                    placeholder="e.g., Downtown Restricted Area"
+                    placeholder="Zone Name"
                     value={newZone.name}
                     onChange={(e) => setNewZone(prev => ({ ...prev, name: e.target.value }))}
                     required
+                    className="h-8 text-sm"
                   />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="zoneType">Zone Type</Label>
                   <select
-                    id="zoneType"
                     value={newZone.zone_type}
                     onChange={(e) => setNewZone(prev => ({ ...prev, zone_type: e.target.value }))}
-                    className="w-full border border-input bg-transparent rounded-md px-3 py-2 text-sm"
+                    className="h-8 border border-input bg-transparent rounded-md px-2 text-sm"
                     required
                   >
                     <option value="restricted">Restricted</option>
                     <option value="risky">Risky</option>
                     <option value="safe">Safe</option>
                   </select>
+                  <Input
+                    placeholder="Description"
+                    value={newZone.description}
+                    onChange={(e) => setNewZone(prev => ({ ...prev, description: e.target.value }))}
+                    required
+                    className="h-8 text-sm"
+                  />
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      variant={isDrawing ? "destructive" : "outline"}
+                      size="sm"
+                      onClick={isDrawing ? () => setIsDrawing(false) : startDrawing}
+                      className="h-8 text-xs flex-1"
+                    >
+                      {isDrawing ? 'Cancel' : 'Draw'}
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={creating || newZone.coordinates.length === 0} 
+                      size="sm"
+                      className="h-8 text-xs flex-1"
+                    >
+                      {creating ? 'Creating...' : 'Create'}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setShowCreateForm(false);
+                        setIsDrawing(false);
+                      }}
+                      className="h-8 px-2"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="zoneDescription">Description</Label>
-                <Input
-                  id="zoneDescription"
-                  placeholder="Describe the zone and any relevant safety information"
-                  value={newZone.description}
-                  onChange={(e) => setNewZone(prev => ({ ...prev, description: e.target.value }))}
-                  required
-                />
-              </div>
-
-              <div className={`p-4 rounded-md border ${newZone.coordinates.length > 0 ? 'bg-green-50 border-green-200 dark:bg-green-900/20' : 'bg-muted border-border'}`}>
-                <div className="flex items-center space-x-2">
-                  <MapPin className="w-4 h-4" />
-                  <span className="text-sm font-medium">
-                    Zone Boundaries: 
-                  </span>
-                  {newZone.coordinates.length > 0 ? (
-                    <Badge variant="success">
-                      {newZone.coordinates.length} points drawn
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">
-                      Not drawn yet
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {newZone.coordinates.length > 0 
-                    ? 'Zone boundaries have been drawn on the map. You can now create the zone.'
-                    : 'Click "Draw Zone" on the map above to define the zone boundaries.'
-                  }
-                </p>
-              </div>
-
-              <div className="flex space-x-2">
-                <Button type="submit" disabled={creating}>
-                  {creating ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Creating...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Zone
-                    </>
-                  )}
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setShowCreateForm(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Search */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input
-              placeholder="Search zones by name, description, or type..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Zones Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Zone List</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredZones.length === 0 ? (
-            <div className="text-center py-8">
-              <Map className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No zones found</h3>
-              <p className="text-muted-foreground">
-                {searchTerm 
-                  ? 'Try adjusting your search criteria'
-                  : 'Create your first zone to start monitoring areas'
-                }
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Zone</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Center Coordinates</TableHead>
-                  <TableHead>Radius</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredZones.map((zone) => {
-                  const TypeIcon = getZoneTypeIcon(zone.type);
-                  return (
-                    <TableRow key={zone.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{zone.name}</div>
-                          <div className="text-sm text-muted-foreground">{zone.description}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <TypeIcon className="w-4 h-4" />
-                          <Badge variant={getZoneTypeColor(zone.type)} className="capitalize">
-                            {zone.type}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-sm">
-                          {formatCoordinates(zone.center)}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">
-                          {zone.radius_meters ? `${zone.radius_meters}m` : 'Variable'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={zone.is_active ? 'success' : 'secondary'}>
-                          {zone.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">
-                          {new Date(zone.created_at).toLocaleDateString()}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Button variant="outline" size="sm">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteZone(zone.id)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Interactive Zone Management Map */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center space-x-2">
-              <Map className="w-5 h-5" />
-              <span>Zone Management Map</span>
-            </span>
-            {showCreateForm && (
-              <div className="flex space-x-2">
-                <Button
-                  variant={isDrawing ? "destructive" : "outline"}
-                  size="sm"
-                  onClick={isDrawing ? () => setIsDrawing(false) : startDrawing}
-                >
-                  {isDrawing ? (
-                    <>
-                      <X className="w-4 h-4 mr-2" />
-                      Cancel Drawing
-                    </>
-                  ) : (
-                    'Draw Zone'
-                  )}
-                </Button>
                 {newZone.coordinates.length > 0 && (
-                  <Badge variant="success">
-                    Zone drawn ({newZone.coordinates.length} points)
-                  </Badge>
+                  <div className="text-xs text-muted-foreground">
+                    ✓ Zone drawn with {newZone.coordinates.length} points
+                  </div>
                 )}
+              </form>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Main Content: 70-30 Split */}
+      <div className="flex-1 grid grid-cols-[1fr_400px] gap-3 min-h-0">
+        {/* Left: Map (70%) */}
+        <Card className="flex flex-col overflow-hidden">
+          <CardHeader className="pb-2 border-b flex-shrink-0">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span className="flex items-center gap-2">
+                <Map className="w-4 h-4" />
+                Interactive Map
+              </span>
+              {isDrawing && (
+                <Badge variant="warning" className="animate-pulse text-xs">
+                  Drawing Mode
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 p-0 relative overflow-hidden">
+            <MapComponent
+              center={[28.6139, 77.2090]}
+              zoom={11}
+              zones={zones.map(zone => ({
+                ...zone,
+                zone_type: zone.zone_type || zone.type || 'safe'
+              }))}
+              tourists={[]}
+              alerts={[]}
+              height="100%"
+              showZoneDrawer={isDrawing}
+              onPolygonComplete={handlePolygonComplete}
+              onZoneClick={(zone) => handleViewZone(zone)}
+              showHeatmap={false}
+            />
+            {zones.length === 0 && !isDrawing && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/80 pointer-events-none">
+                <div className="text-center text-muted-foreground">
+                  <MapPin className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm font-medium">No zones created</p>
+                </div>
               </div>
             )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MapComponent
-            center={[35.6762, 139.6503]}
-            zoom={13}
-            zones={zones}
-            height="500px"
-            showZoneDrawer={isDrawing}
-            onPolygonComplete={handlePolygonComplete}
-            onZoneClick={(zone) => console.log('Zone clicked:', zone)}
-          />
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Right: Zones List (30%) */}
+        <Card className="flex flex-col overflow-hidden">
+          <CardHeader className="pb-2 border-b flex-shrink-0">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Zones ({filteredZones.length})</CardTitle>
+              </div>
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3 h-3" />
+                <Input
+                  placeholder="Search zones..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-7 h-7 text-xs"
+                />
+              </div>
+              {/* Filter & Sort */}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="w-full h-7 border border-input bg-transparent rounded-md px-2 text-xs"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="restricted">Restricted</option>
+                    <option value="risky">Risky</option>
+                    <option value="safe">Safe</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full h-7 border border-input bg-transparent rounded-md px-2 text-xs"
+                  >
+                    <option value="name">Sort by Name</option>
+                    <option value="type">Sort by Type</option>
+                    <option value="created">Sort by Date</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-y-auto p-0">
+            {filteredZones.length === 0 ? (
+              <div className="flex items-center justify-center h-full p-4">
+                <div className="text-center">
+                  <Map className="w-8 h-8 mx-auto text-muted-foreground mb-2 opacity-30" />
+                  <p className="text-xs text-muted-foreground">
+                    {searchTerm || filterType !== 'all' ? 'No matching zones' : 'No zones found'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {filteredZones.map((zone) => {
+                  const TypeIcon = getZoneTypeIcon(zone.type || zone.zone_type);
+                  const zoneType = zone.type || zone.zone_type;
+                  return (
+                    <div 
+                      key={zone.id} 
+                      className="p-2.5 hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => handleViewZone(zone)}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className={`p-1.5 rounded mt-0.5 flex-shrink-0 ${
+                          zoneType === 'restricted' ? 'bg-red-100 dark:bg-red-900' :
+                          zoneType === 'risky' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                          'bg-green-100 dark:bg-green-900'
+                        }`}>
+                          <TypeIcon className={`w-3 h-3 ${
+                            zoneType === 'restricted' ? 'text-red-600' :
+                            zoneType === 'risky' ? 'text-yellow-600' :
+                            'text-green-600'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-1 mb-1">
+                            <h4 className="font-semibold text-xs truncate">{zone.name}</h4>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 w-5 p-0 flex-shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteZone(zone.id);
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3 text-destructive" />
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-1 mb-1.5">
+                            {zone.description || 'No description'}
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            <Badge variant={getZoneTypeColor(zoneType)} className="text-[10px] px-1.5 py-0 h-4">
+                              {zoneType}
+                            </Badge>
+                            {zone.is_active && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                                Active
+                              </Badge>
+                            )}
+                            {zone.radius_meters && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                {zone.radius_meters}m
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Zone Detail Modal */}
+      {showZoneDetail && selectedZone && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <Card className="w-full max-w-4xl max-h-[85vh] flex flex-col relative" style={{ zIndex: 10000 }}>
+            <CardHeader className="border-b flex-shrink-0 pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded ${
+                    (selectedZone.zone_type || selectedZone.type) === 'restricted' ? 'bg-red-100 dark:bg-red-900' :
+                    (selectedZone.zone_type || selectedZone.type) === 'risky' ? 'bg-yellow-100 dark:bg-yellow-900' :
+                    'bg-green-100 dark:bg-green-900'
+                  }`}>
+                    <MapPin className={`w-5 h-5 ${
+                      (selectedZone.zone_type || selectedZone.type) === 'restricted' ? 'text-red-600' :
+                      (selectedZone.zone_type || selectedZone.type) === 'risky' ? 'text-yellow-600' :
+                      'text-green-600'
+                    }`} />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">{selectedZone.name}</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {selectedZone.description || 'No description'}
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleCloseDetail}
+                  className="h-7 w-7 p-0"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Left: Details */}
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-muted p-2 rounded">
+                      <label className="text-xs text-muted-foreground block mb-1">Type</label>
+                      <Badge variant={getZoneTypeColor(selectedZone.zone_type || selectedZone.type)} className="text-xs">
+                        {(selectedZone.zone_type || selectedZone.type)?.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="bg-muted p-2 rounded">
+                      <label className="text-xs text-muted-foreground block mb-1">Status</label>
+                      <Badge variant={selectedZone.is_active ? 'success' : 'secondary'} className="text-xs">
+                        {selectedZone.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <label className="text-xs text-muted-foreground block mb-1">Coordinates</label>
+                    <div className="text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span>Points:</span>
+                        <span className="font-mono">{selectedZone.coordinates?.length || 0}</span>
+                      </div>
+                      {selectedZone.radius_meters && (
+                        <div className="flex justify-between">
+                          <span>Radius:</span>
+                          <span className="font-mono">{selectedZone.radius_meters}m</span>
+                        </div>
+                      )}
+                      {selectedZone.center && (
+                        <div className="flex justify-between">
+                          <span>Center:</span>
+                          <span className="font-mono text-[10px]">{formatCoordinates(selectedZone.center)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-muted p-2 rounded">
+                    <label className="text-xs text-muted-foreground block mb-1">Created</label>
+                    <p className="text-xs">{new Date(selectedZone.created_at).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Right: Map */}
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-2">Zone Preview</label>
+                  {selectedZone.coordinates && selectedZone.coordinates.length > 0 ? (
+                    <div className="rounded-lg overflow-hidden border h-[300px]">
+                      <MapComponent
+                        center={[
+                          selectedZone.center_latitude || selectedZone.coordinates.reduce((sum, coord) => sum + (Array.isArray(coord) ? coord[1] : coord.lat || 0), 0) / selectedZone.coordinates.length,
+                          selectedZone.center_longitude || selectedZone.coordinates.reduce((sum, coord) => sum + (Array.isArray(coord) ? coord[0] : coord.lon || 0), 0) / selectedZone.coordinates.length
+                        ]}
+                        zoom={14}
+                        zones={[{
+                          ...selectedZone,
+                          zone_type: selectedZone.zone_type || selectedZone.type || 'safe'
+                        }]}
+                        tourists={[]}
+                        alerts={[]}
+                        height="100%"
+                        showHeatmap={false}
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center bg-muted rounded-lg">
+                      <p className="text-xs text-muted-foreground">No map data</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

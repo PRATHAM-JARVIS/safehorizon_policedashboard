@@ -18,6 +18,7 @@ import Alerts from './pages/Alerts.jsx';
 import Zones from './pages/Zones.jsx';
 import EFIRs from './pages/EFIRs.jsx';
 import Emergency from './pages/Emergency.jsx';
+import Broadcast from './pages/Broadcast.jsx';
 import Admin from './pages/Admin.jsx';
 
 // CSS imports for Leaflet
@@ -55,6 +56,7 @@ function App() {
             <Route path="alerts" element={<Alerts />} />
             <Route path="zones" element={<Zones />} />
             <Route path="efirs" element={<EFIRs />} />
+            <Route path="broadcast" element={<Broadcast />} />
             <Route path="emergency" element={
               <ProtectedRoute requireAdmin={false}>
                 <Emergency />

@@ -33,28 +33,117 @@ const TouristDetail = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!id) {
+        setError('Invalid tourist ID');
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
+      setError(null);
+      
       try {
-        const [profileRes, locationRes, locationsRes, alertsRes] = await Promise.all([
-          touristAPI.getTouristProfile(id).catch(() => touristAPI.trackTourist(id)),
-          touristAPI.getCurrentLocation(id).catch(() => null),
-          touristAPI.getLocationHistoryForTourist(id, { limit: 10, hours_back: 24 }).catch(() => ({ data: { locations: [] } })),
-          touristAPI.getTouristAlerts(id).catch(() => ({ data: { alerts: [] } }))
+        // Fetch data with individual error handling
+        const fetchProfile = async () => {
+          try {
+            const response = await touristAPI.getTouristProfile(id);
+            // Handle documented response structure: tourist property
+            return response.tourist || response;
+          } catch (error) {
+            console.warn('Profile endpoint failed, trying track endpoint:', error.message);
+            try {
+              const fallback = await touristAPI.trackTourist(id);
+              // Handle documented response structure: tourist property
+              return fallback.tourist || fallback;
+            } catch (fallbackError) {
+              console.error('Both profile endpoints failed:', fallbackError.message);
+              return null;
+            }
+          }
+        };
+
+        const fetchCurrentLocation = async () => {
+          try {
+            const response = await touristAPI.getCurrentLocation(id);
+            // Handle documented response structure: location property
+            return response.location || response;
+          } catch (error) {
+            console.warn('Current location fetch failed:', error.message);
+            return null;
+          }
+        };
+
+        const fetchLocationHistory = async () => {
+          try {
+            const response = await touristAPI.getLocationHistoryForTourist(id, { 
+              limit: 50, 
+              hours_back: 24 
+            });
+            // Handle documented response structure: locations property
+            return response.locations || [];
+          } catch (error) {
+            console.warn('Location history fetch failed:', error.message);
+            return [];
+          }
+        };
+
+        const fetchAlerts = async () => {
+          try {
+            const response = await touristAPI.getTouristAlerts(id);
+            // Handle documented response structure: direct array
+            return Array.isArray(response) ? response : [];
+          } catch (error) {
+            console.warn('Alerts fetch failed:', error.message);
+            return [];
+          }
+        };
+
+        // Fetch all data in parallel
+        const [profileData, locationData, locationsData, alertsData] = await Promise.allSettled([
+          fetchProfile(),
+          fetchCurrentLocation(),
+          fetchLocationHistory(),
+          fetchAlerts()
         ]);
 
-        setTourist(profileRes.data || profileRes.tourist || profileRes);
-        setCurrentLocation(locationRes?.data || locationRes);
-        setRecentLocations(locationsRes.data?.locations || locationsRes.locations || []);
-        setAlerts(alertsRes.data?.alerts || alertsRes.alerts || []);
+        // Process results
+        const profile = profileData.status === 'fulfilled' ? profileData.value : null;
+        const location = locationData.status === 'fulfilled' ? locationData.value : null;
+        const locations = locationsData.status === 'fulfilled' ? locationsData.value : [];
+        const alerts = alertsData.status === 'fulfilled' ? alertsData.value : [];
+
+        if (!profile) {
+          throw new Error('Unable to load tourist profile. Tourist may not exist.');
+        }
+
+        setTourist(profile);
+        setCurrentLocation(location);
+        setRecentLocations(Array.isArray(locations) ? locations : []);
+        setAlerts(Array.isArray(alerts) ? alerts : []);
         setError(null);
+
+        console.log('🔍 Tourist data loaded:', {
+          tourist: profile?.name || profile?.id,
+          profile: profile,
+          currentLocation: location,
+          hasLocation: !!location,
+          locationHasLatLon: location?.latitude && location?.longitude,
+          locationCount: locations.length,
+          alertCount: alerts.length
+        });
+
       } catch (err) {
-        setError(err.message || 'Failed to load tourist data');
+        console.error('Failed to load tourist data:', err);
+        setError(err.message || 'Failed to load tourist data. Please check if the tourist ID is valid.');
+        setTourist(null);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
+    
+    // Refresh every 30 seconds
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [id]);
@@ -111,6 +200,74 @@ const TouristDetail = () => {
   const safetyScore = tourist.safety_score || tourist.safetyScore || 0;
   const safetyColor = getSafetyScoreColor(safetyScore);
   const safetyLabel = getSafetyScoreLabel(safetyScore);
+
+  // Enhanced location detection - check multiple possible sources
+  const getLocationData = () => {
+    // Priority 1: currentLocation state
+    if (currentLocation?.latitude && currentLocation?.longitude) {
+      return {
+        lat: currentLocation.latitude,
+        lon: currentLocation.longitude,
+        address: currentLocation.address
+      };
+    }
+    
+    // Priority 2: tourist.current_location
+    if (tourist.current_location?.lat && tourist.current_location?.lon) {
+      return {
+        lat: tourist.current_location.lat,
+        lon: tourist.current_location.lon,
+        address: tourist.current_location.address
+      };
+    }
+    
+    // Priority 3: tourist.last_location
+    if (tourist.last_location?.lat && tourist.last_location?.lon) {
+      return {
+        lat: tourist.last_location.lat,
+        lon: tourist.last_location.lon,
+        address: tourist.last_location.address
+      };
+    }
+    
+    // Priority 4: tourist.location
+    if (tourist.location?.lat && tourist.location?.lon) {
+      return {
+        lat: tourist.location.lat,
+        lon: tourist.location.lon,
+        address: tourist.location.address
+      };
+    }
+    
+    // Priority 5: Direct lat/lon on tourist
+    if (tourist.latitude && tourist.longitude) {
+      return {
+        lat: tourist.latitude,
+        lon: tourist.longitude,
+        address: tourist.address
+      };
+    }
+    
+    // Priority 6: Check recent locations array
+    if (recentLocations.length > 0 && recentLocations[0]?.latitude && recentLocations[0]?.longitude) {
+      return {
+        lat: recentLocations[0].latitude,
+        lon: recentLocations[0].longitude,
+        address: recentLocations[0].address
+      };
+    }
+    
+    return null;
+  };
+  
+  const locationData = getLocationData();
+  
+  console.log('📍 Final location data for map:', {
+    locationData,
+    hasCurrentLocation: !!currentLocation,
+    hasTouristLocation: !!(tourist.current_location || tourist.last_location || tourist.location),
+    recentLocationsCount: recentLocations.length
+  });
 
   const mapLocations = [];
   if (currentLocation?.latitude && currentLocation?.longitude) {
@@ -216,7 +373,7 @@ const TouristDetail = () => {
               </div>
             </div>
 
-            {currentLocation && (
+            {locationData && (
               <div className="pt-4 border-t">
                 <div className="flex items-start gap-3">
                   <div className="p-2 bg-red-500/10 rounded-lg">
@@ -225,9 +382,12 @@ const TouristDetail = () => {
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground">Current Location</p>
                     <p className="font-mono text-xs text-muted-foreground">
-                      {currentLocation.latitude?.toFixed(6)}, {currentLocation.longitude?.toFixed(6)}
+                      {locationData.lat?.toFixed(6)}, {locationData.lon?.toFixed(6)}
                     </p>
-                    {currentLocation.zone_type && (
+                    {locationData.address && (
+                      <p className="text-xs text-muted-foreground mt-1">{locationData.address}</p>
+                    )}
+                    {currentLocation?.zone_type && (
                       <Badge variant="outline" className="mt-1 text-xs">
                         {currentLocation.zone_type}
                       </Badge>
@@ -248,14 +408,55 @@ const TouristDetail = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {mapLocations.length > 0 ? (
-                <Map locations={mapLocations} height="400px" />
+              {locationData ? (
+                <>
+                  {console.log('🗺️ Rendering Map with location:', locationData)}
+                  <Map 
+                    center={[locationData.lat, locationData.lon]}
+                    zoom={15}
+                    tourists={[{
+                      id: tourist.id,
+                      name: tourist.name,
+                      last_location: {
+                        lat: locationData.lat,
+                        lon: locationData.lon,
+                        address: locationData.address || 'Current Location'
+                      },
+                      current_location: {
+                        lat: locationData.lat,
+                        lon: locationData.lon,
+                        address: locationData.address || 'Current Location'
+                      },
+                      safety_score: safetyScore,
+                      last_seen: currentLocation?.timestamp || tourist.last_seen || new Date().toISOString()
+                    }]}
+                    alerts={alerts.filter(a => a.coordinates || (a.latitude && a.longitude)).map(a => ({
+                      ...a,
+                      coordinates: {
+                        lat: a.latitude || a.coordinates?.lat || a.coordinates?.latitude,
+                        lon: a.longitude || a.coordinates?.lon || a.coordinates?.longitude
+                      }
+                    }))}
+                    height="400px"
+                    showHeatmap={false}
+                  />
+                </>
               ) : (
                 <div className="h-[400px] flex items-center justify-center bg-muted/30">
                   <div className="text-center text-muted-foreground">
                     <MapPin className="w-12 h-12 mx-auto mb-2 opacity-30" />
                     <p className="font-medium">No location data available</p>
                     <p className="text-sm">Waiting for GPS coordinates...</p>
+                    {console.log('⚠️ No location data found:', {
+                      currentLocation,
+                      tourist: {
+                        id: tourist.id,
+                        current_location: tourist.current_location,
+                        last_location: tourist.last_location,
+                        location: tourist.location
+                      },
+                      recentLocations: recentLocations.slice(0, 2)
+                    })}
                   </div>
                 </div>
               )}

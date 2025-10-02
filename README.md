@@ -78,6 +78,17 @@ npm install- Hash verification for authenticity
 
 - Complete incident documentation
 
+### 🆕 Broadcast & Notification System
+
+- **4 Broadcast Types**: Radius, Zone, Region, State-wide
+- **Emergency Alerts**: Send real-time notifications to tourists
+- **Acknowledgment Tracking**: Monitor tourist responses
+- **Broadcast History**: View and analyze past broadcasts
+- **Mobile Integration**: Firebase Cloud Messaging support
+- **Targeted Notifications**: Send to specific tourists or groups
+- **Analytics Dashboard**: Track delivery and acknowledgment rates
+- See [BROADCAST_IMPLEMENTATION_GUIDE.md](./BROADCAST_IMPLEMENTATION_GUIDE.md) for details
+
 # 3. Configure environment
 
 cp .env.example .env### Admin Tools
