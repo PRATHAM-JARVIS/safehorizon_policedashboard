@@ -17,7 +17,6 @@ import {
   Zap,
   Sun,
   Moon,
-  Radio,
   Bell,
 } from 'lucide-react';
 import { Button } from '../components/ui/button.jsx';
@@ -35,7 +34,6 @@ const Layout = () => {
     { icon: Map, label: 'Zones', path: '/zones' },
     { icon: FileText, label: 'E-FIRs', path: '/efirs' },
     { icon: Bell, label: 'Broadcast', path: '/broadcast' },
-    { icon: Radio, label: 'Emergency', path: '/emergency' },
     ...(isAdmin ? [{ icon: Settings, label: 'Admin', path: '/admin' }] : []),
   ];
 

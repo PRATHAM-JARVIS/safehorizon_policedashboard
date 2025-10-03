@@ -14,7 +14,6 @@ const Login = () => {
   const { login, isAuthenticated, isLoading, error, clearError } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already authenticated
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -115,10 +114,7 @@ const Login = () => {
             </form>
 
             <div className="mt-8 text-center">
-              <div className="bg-muted/30 rounded-lg p-4">
-                <p className="text-sm text-muted-foreground font-medium mb-1">Authorized personnel only</p>
-                <p className="text-xs text-muted-foreground">Contact IT support for account assistance</p>
-              </div>
+              <p className="text-sm text-muted-foreground">Authorized personnel only</p>
             </div>
           </CardContent>
         </Card>

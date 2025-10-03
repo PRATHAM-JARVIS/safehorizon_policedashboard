@@ -1,11 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 
-// Create WebSocket Context
 const WebSocketContext = createContext(null);
 
-// WebSocket Provider Component
 export const WebSocketProvider = ({ children }) => {
   const [realtimeAlerts, setRealtimeAlerts] = useState([]);
   const [alertStats, setAlertStats] = useState({
@@ -14,15 +12,13 @@ export const WebSocketProvider = ({ children }) => {
     activeTourists: 0
   });
 
-  // Request notification permission on mount
   React.useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, []);
 
-  // Show browser notification for new alerts
-  const showNotification = useCallback((alertData) => {
+  const showNotificationInternal = useCallback((alertData) => {
     if ('Notification' in window && Notification.permission === 'granted') {
       const notification = new Notification('🚨 SafeHorizon Alert', {
         body: `${alertData.type || 'Alert'}: ${alertData.description || 'New alert received'}\nTourist: ${alertData.tourist_name || 'Unknown'}`,
@@ -38,11 +34,32 @@ export const WebSocketProvider = ({ children }) => {
         notification.close();
       };
       
-      // Auto-close after 10 seconds for non-critical alerts
       if (alertData.severity !== 'critical') {
         setTimeout(() => notification.close(), 10000);
       }
     }
+  }, []);
+
+  const showNotificationThrottled = React.useRef();
+  if (!showNotificationThrottled.current) {
+    showNotificationThrottled.current = function(alertData) {
+      showNotificationInternal(alertData);
+    };
+    // Simple throttle: track last call time
+    let lastCallTime = 0;
+    const throttleDelay = 3000;
+    const originalFunc = showNotificationThrottled.current;
+    showNotificationThrottled.current = function(alertData) {
+      const now = Date.now();
+      if (now - lastCallTime >= throttleDelay) {
+        lastCallTime = now;
+        originalFunc(alertData);
+      }
+    };
+  }
+
+  const showNotification = useCallback((alertData) => {
+    showNotificationThrottled.current(alertData);
   }, []);
 
   // WebSocket configuration with callbacks
@@ -53,25 +70,26 @@ export const WebSocketProvider = ({ children }) => {
     heartbeatTimeout: parseInt(import.meta.env.VITE_WS_HEARTBEAT_TIMEOUT) || 5000,
     autoConnect: import.meta.env.VITE_WS_AUTO_CONNECT === 'true',
     onConnect: () => {
-      // WebSocket connected
     },
     onMessage: (data) => {
-      // Handle different message types
       if (data.type === 'alert' || data.type === 'new_alert') {
         const alertWithTimestamp = { ...data, timestamp: data.timestamp || new Date().toISOString() };
+        
         setRealtimeAlerts(prev => {
+          if (prev.some(alert => alert.id === alertWithTimestamp.id)) {
+            return prev;
+          }
           const newList = [alertWithTimestamp, ...prev.slice(0, 19)];
           return newList;
-        }); // Keep last 20 alerts
+        });
+        
         setAlertStats(prev => ({
           ...prev,
           alertsToday: prev.alertsToday + 1
         }));
         
-        // Show browser notification
         showNotification(alertWithTimestamp);
         
-        // Play alert sound (optional)
         try {
           const audio = new Audio('/alert-sound.mp3');
           audio.volume = 0.3;
@@ -81,7 +99,14 @@ export const WebSocketProvider = ({ children }) => {
         }
       } else if (data.type === 'sos' || data.type === 'emergency') {
         const alertWithTimestamp = { ...data, timestamp: data.timestamp || new Date().toISOString() };
-        setRealtimeAlerts(prev => [alertWithTimestamp, ...prev.slice(0, 19)]);
+        
+        setRealtimeAlerts(prev => {
+          if (prev.some(alert => alert.id === alertWithTimestamp.id)) {
+            return prev;
+          }
+          return [alertWithTimestamp, ...prev.slice(0, 19)];
+        });
+        
         setAlertStats(prev => ({
           ...prev,
           sosCount: prev.sosCount + 1
@@ -95,8 +120,8 @@ export const WebSocketProvider = ({ children }) => {
           const audio = new Audio('/emergency-sound.mp3');
           audio.volume = 0.5;
           audio.play().catch(() => {});
-        } catch {
-          // Audio not available
+        } catch (err) {
+          console.error('Audio error:', err);
         }
       } else if (data.type === 'tourist_update') {
         setAlertStats(prev => ({
@@ -104,7 +129,6 @@ export const WebSocketProvider = ({ children }) => {
           activeTourists: data.activeTourists || prev.activeTourists
         }));
       } else if (data.type === 'stats_update') {
-        // Handle stats updates from backend
         setAlertStats(prev => ({
           ...prev,
           ...data.stats
@@ -112,14 +136,12 @@ export const WebSocketProvider = ({ children }) => {
       }
     },
     onClose: (_event) => {
-      // WebSocket disconnected
     },
     onError: (error) => {
       console.error('❌ Global WebSocket error:', error);
     }
   };
 
-  // Initialize WebSocket hook
   const {
     lastMessage,
     readyState,
@@ -145,8 +167,8 @@ export const WebSocketProvider = ({ children }) => {
     }));
   }, []);
 
-  // Context value
-  const contextValue = {
+  // Context value - memoized to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
     // WebSocket state
     lastMessage,
     readyState,
@@ -168,7 +190,22 @@ export const WebSocketProvider = ({ children }) => {
     clearRealtimeAlerts,
     updateAlertStats,
     showNotification
-  };
+  }), [
+    lastMessage,
+    readyState,
+    wsError,
+    connectionAttempts,
+    isConnected,
+    isConnecting,
+    connectWebSocket,
+    forceReconnect,
+    sendMessage,
+    realtimeAlerts,
+    alertStats,
+    clearRealtimeAlerts,
+    updateAlertStats,
+    showNotification
+  ]);
 
   return (
     <WebSocketContext.Provider value={contextValue}>

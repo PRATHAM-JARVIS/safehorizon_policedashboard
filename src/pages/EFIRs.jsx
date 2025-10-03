@@ -29,15 +29,12 @@ const EFIRs = () => {
     const fetchEFIRs = async () => {
       try {
         setLoading(true);
-        // Use the documented authority E-FIR list endpoint
         const response = await efirAPI.listEFIRs({ limit: 100, offset: 0 });
-        // Handle documented response structure: efir_records property
         const efirsList = response.efir_records || [];
         setEfirs(Array.isArray(efirsList) ? efirsList : []);
         setFilteredEfirs(Array.isArray(efirsList) ? efirsList : []);
       } catch (error) {
         console.error('Failed to fetch E-FIRs:', error);
-        // Show error state - E-FIR endpoint may not be fully implemented yet
         setEfirs([]);
         setFilteredEfirs([]);
       } finally {
@@ -47,7 +44,6 @@ const EFIRs = () => {
 
     fetchEFIRs();
     
-    // Set up periodic refresh for E-FIRs (every 30 seconds)
     const refreshInterval = setInterval(fetchEFIRs, 30000);
     
     return () => clearInterval(refreshInterval);
@@ -73,7 +69,6 @@ const EFIRs = () => {
     try {
       const pdfBlob = await efirAPI.exportEFIRPDF(efir.efir_id);
       
-      // Create download link
       const url = window.URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');
       link.href = url;
@@ -89,9 +84,6 @@ const EFIRs = () => {
   };
 
   const handleViewBlockchain = (hash) => {
-    // In a real application, this would open a blockchain explorer
-    // Example for Ethereum: window.open(`https://etherscan.io/tx/${hash}`, '_blank');
-    // For now, show an alert with the hash
     alert(`Blockchain Transaction Hash:\n${hash}\n\nVerification link would open in blockchain explorer.`);
   };
 

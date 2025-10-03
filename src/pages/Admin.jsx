@@ -41,16 +41,13 @@ const Admin = () => {
         const status = statusResponse.status || statusResponse;
         setSystemStatus(status);
         
-        // Fetch users list
         const usersResponse = await adminAPI.getUsersList();
-        // Handle documented response structure: users property
         const usersData = usersResponse.users || [];
         const usersList = Array.isArray(usersData) ? usersData : [];
         setUsers(usersList);
         setFilteredUsers(usersList);
       } catch (error) {
         console.error('Failed to fetch admin data:', error);
-        // Show error state
         setSystemStatus({
           status: 'error',
           version: 'unknown',
@@ -70,7 +67,6 @@ const Admin = () => {
 
     fetchAdminData();
     
-    // Set up periodic refresh for admin data (every 30 seconds)
     const refreshInterval = setInterval(fetchAdminData, 30000);
     
     return () => clearInterval(refreshInterval);
@@ -79,7 +75,6 @@ const Admin = () => {
   useEffect(() => {
     let filtered = users;
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(user =>
         user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,7 +82,6 @@ const Admin = () => {
       );
     }
 
-    // Role filter
     if (filterRole !== 'all') {
       filtered = filtered.filter(user => user.role === filterRole);
     }

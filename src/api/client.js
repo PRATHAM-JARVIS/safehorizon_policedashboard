@@ -1,13 +1,15 @@
 import axios from 'axios';
+import { apiCache, requestDeduplicator } from '../utils/performanceOptimizations.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// Create axios instance
+// Create axios instance with optimized defaults
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 second timeout
 });
 
 // Token management
@@ -28,15 +30,37 @@ export const tokenManager = {
   setUser: (user) => localStorage.setItem(USER_KEY, JSON.stringify(user)),
 };
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and handle caching
 apiClient.interceptors.request.use(
   (config) => {
     const token = tokenManager.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    // Add request timestamp for debugging
+    
+    // Add request timestamp for debugging and performance monitoring
     config.metadata = { startTime: new Date() };
+    
+    // Handle GET request caching
+    if (config.method === 'get' && !config.skipCache) {
+      const cacheKey = `${config.url}_${JSON.stringify(config.params || {})}`;
+      const cached = apiCache.get(cacheKey);
+      
+      if (cached) {
+        // Return cached response
+        config.adapter = () => {
+          return Promise.resolve({
+            data: cached,
+            status: 200,
+            statusText: 'OK (Cached)',
+            headers: config.headers,
+            config,
+            request: {}
+          });
+        };
+      }
+    }
+    
     return config;
   },
   (error) => {
@@ -45,9 +69,16 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle auth errors and logging
+// Response interceptor to handle auth errors, logging, and caching
 apiClient.interceptors.response.use(
   (response) => {
+    // Cache GET responses
+    if (response.config.method === 'get' && !response.config.skipCache) {
+      const cacheKey = `${response.config.url}_${JSON.stringify(response.config.params || {})}`;
+      const cacheTTL = response.config.cacheTTL || 30000; // Default 30 seconds
+      apiCache.set(cacheKey, response.data, cacheTTL);
+    }
+    
     return response;
   },
   (error) => {
@@ -84,5 +115,19 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Optimized API call wrapper with request deduplication
+export const optimizedApiCall = (url, options = {}) => {
+  const dedupeKey = `${options.method || 'get'}_${url}_${JSON.stringify(options.params || {})}`;
+  
+  return requestDeduplicator.dedupe(dedupeKey, () => {
+    return apiClient(url, options);
+  });
+};
+
+// Clear cache on logout or token change
+export const clearApiCache = () => {
+  apiCache.clear();
+};
 
 export default apiClient;

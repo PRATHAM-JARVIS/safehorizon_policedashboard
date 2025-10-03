@@ -47,7 +47,6 @@ const Zones = () => {
         setLoading(true);
         setError(null);
         const response = await zonesAPI.manageZones();
-        // API returns direct array of zones according to documentation
         const zonesList = Array.isArray(response) ? response : (response.zones || response.data || []);
         setZones(zonesList);
         setFilteredZones(zonesList);
@@ -69,7 +68,6 @@ const Zones = () => {
   useEffect(() => {
     let filtered = zones;
 
-    // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter(zone =>
         zone.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -77,12 +75,10 @@ const Zones = () => {
       );
     }
 
-    // Filter by type
     if (filterType !== 'all') {
       filtered = filtered.filter(zone => (zone.type || zone.zone_type) === filterType);
     }
 
-    // Sort
     filtered = [...filtered].sort((a, b) => {
       switch (sortBy) {
         case 'name':

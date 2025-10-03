@@ -8,7 +8,7 @@
  * - Performance monitoring
  */
 
-import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 
 /**
  * Debounce function - delays execution until after wait time has elapsed
@@ -52,7 +52,7 @@ export const throttle = (func, limit = 300) => {
  * @returns {any} Debounced value
  */
 export const useDebounce = (value, delay = 500) => {
-  const [debouncedValue, setDebouncedValue] = React.useState(value);
+  const [debouncedValue, setDebouncedValue] = useState(value);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -170,9 +170,9 @@ export const cachedApiCall = async (cacheKey, apiCall, ttl = 30000) => {
  * @returns {Object} { data, loading, error, refetch }
  */
 export const useCachedApi = (cacheKey, apiCall, dependencies = [], ttl = 30000) => {
-  const [data, setData] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchData = useCallback(async (skipCache = false) => {
     try {

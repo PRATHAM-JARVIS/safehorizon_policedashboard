@@ -43,16 +43,13 @@ const TouristDetail = () => {
       setError(null);
       
       try {
-        // Fetch data with individual error handling
         const fetchProfile = async () => {
           try {
             const response = await touristAPI.getTouristProfile(id);
-            // Handle documented response structure: tourist property
             return response.tourist || response;
           } catch {
             try {
               const fallback = await touristAPI.trackTourist(id);
-              // Handle documented response structure: tourist property
               return fallback.tourist || fallback;
             } catch (fallbackError) {
               console.error('Both profile endpoints failed:', fallbackError.message);
@@ -64,7 +61,6 @@ const TouristDetail = () => {
         const fetchCurrentLocation = async () => {
           try {
             const response = await touristAPI.getCurrentLocation(id);
-            // Handle documented response structure: location property
             return response.location || response;
           } catch {
             return null;
@@ -77,7 +73,6 @@ const TouristDetail = () => {
               limit: 50, 
               hours_back: 24 
             });
-            // Handle documented response structure: locations property
             return response.locations || [];
           } catch {
             return [];
@@ -87,14 +82,12 @@ const TouristDetail = () => {
         const fetchAlerts = async () => {
           try {
             const response = await touristAPI.getTouristAlerts(id);
-            // Handle documented response structure: direct array
             return Array.isArray(response) ? response : [];
           } catch {
             return [];
           }
         };
 
-        // Fetch all data in parallel
         const [profileData, locationData, locationsData, alertsData] = await Promise.allSettled([
           fetchProfile(),
           fetchCurrentLocation(),

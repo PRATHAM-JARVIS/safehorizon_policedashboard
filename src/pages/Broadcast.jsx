@@ -65,7 +65,6 @@ const Broadcast = () => {
   const handleRadiusBroadcast = async (e) => {
     e.preventDefault();
     
-    // Validate required fields
     if (!radiusForm.center_latitude || !radiusForm.center_longitude) {
       alert('❌ Please provide center coordinates (latitude and longitude).');
       return;

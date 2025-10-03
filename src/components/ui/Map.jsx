@@ -225,8 +225,8 @@ const PolygonDrawer = ({ onPolygonComplete, isActive }) => {
 
 // Main Map Component
 export const MapComponent = ({ 
-  center = [28.6139, 77.2090], // Default to New Delhi, India
-  zoom = 11,
+  center = [20.5937, 78.9629], // Default to center of India (geographic center)
+  zoom = 5, // Zoom level to show full India map
   tourists = [],
   alerts = [],
   zones = [],

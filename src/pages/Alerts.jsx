@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card.jsx';
 import { Button } from '../components/ui/button.jsx';
 import { Input } from '../components/ui/input.jsx';
 import { Badge } from '../components/ui/badge.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table.jsx';
-import { touristAPI, alertsAPI, efirAPI } from '../api/services.js';
-import AlertDetailModal from '../components/ui/AlertDetailModal.jsx';
+import { alertsAPI, efirAPI } from '../api/services.js';
 import {
   AlertTriangle,
   Search,
@@ -21,22 +21,19 @@ import {
 } from 'lucide-react';
 
 const Alerts = () => {
+  const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
   const [filteredAlerts, setFilteredAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [selectedAlert, setSelectedAlert] = useState(null);
-  const [showAlertModal, setShowAlertModal] = useState(false);
 
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
         setLoading(true);
-        // Use documented parameters for alerts API
-        const response = await alertsAPI.getRecentAlerts({ hours: 168 }); // Get 7 days worth
-        // Handle documented response structure: direct array
+        const response = await alertsAPI.getRecentAlerts({ hours: 168 });
         const alertsList = Array.isArray(response) ? response : [];
         setAlerts(alertsList);
         setFilteredAlerts(alertsList);
@@ -61,7 +58,6 @@ const Alerts = () => {
   useEffect(() => {
     let filtered = alerts;
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(alert =>
         alert.tourist_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -70,12 +66,10 @@ const Alerts = () => {
       );
     }
 
-    // Severity filter
     if (filterSeverity !== 'all') {
       filtered = filtered.filter(alert => alert.severity === filterSeverity);
     }
 
-    // Status filter
     if (filterStatus !== 'all') {
       if (filterStatus === 'pending') {
         filtered = filtered.filter(alert => !alert.is_acknowledged && !alert.is_resolved);
@@ -110,7 +104,6 @@ const Alerts = () => {
 
   const handleAcknowledge = async (alertId) => {
     try {
-      // Use the correct API endpoint as per documentation
       await alertsAPI.acknowledgeIncident(alertId, 'Alert acknowledged from dashboard');
       
       setAlerts(prev => prev.map(alert => 
@@ -129,7 +122,6 @@ const Alerts = () => {
       const newStatus = !currentResolvedStatus;
       const action = newStatus ? 'resolved' : 'reopened';
       
-      // Use the toggle method which handles both resolve and unresolve
       await alertsAPI.toggleResolvedStatus(
         alertId, 
         currentResolvedStatus, 
@@ -152,7 +144,6 @@ const Alerts = () => {
 
   const handleGenerateEFIR = async (alert) => {
     try {
-      // Match API.md format for E-FIR generation
       const efirData = {
         alert_id: alert.id,
         tourist_id: alert.tourist_id,
@@ -167,10 +158,10 @@ const Alerts = () => {
       };
       
       const efir = await efirAPI.generateEFIR(efirData);
-      alert('E-FIR generated successfully! ID: ' + (efir.efir_id || efir.id));
+      window.alert('E-FIR generated successfully! ID: ' + (efir.efir_id || efir.id));
     } catch (error) {
       console.error('Failed to generate E-FIR:', error);
-      alert('Failed to generate E-FIR. Please try again.');
+      window.alert('Failed to generate E-FIR. Please try again.');
     }
   };
 
@@ -344,7 +335,11 @@ const Alerts = () => {
                   const TypeIcon = getTypeIcon(alert.type || alert.alert_type);
                   
                   return (
-                    <TableRow key={alert.id}>
+                    <TableRow 
+                      key={alert.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate(`/alerts/${alert.id}`)}
+                    >
                       <TableCell>
                         <div className="flex items-center space-x-2">
                           <TypeIcon className="w-4 h-4 text-muted-foreground" />
@@ -371,14 +366,11 @@ const Alerts = () => {
                         {new Date(alert.created_at).toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end space-x-1">
+                        <div className="flex justify-end space-x-1" onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              setSelectedAlert(alert);
-                              setShowAlertModal(true);
-                            }}
+                            onClick={() => navigate(`/alerts/${alert.id}`)}
                             title="View Details"
                           >
                             <Eye className="w-4 h-4" />
@@ -424,19 +416,6 @@ const Alerts = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Alert Detail Modal */}
-      <AlertDetailModal
-        alert={selectedAlert}
-        isOpen={showAlertModal}
-        onClose={() => {
-          setShowAlertModal(false);
-          setSelectedAlert(null);
-        }}
-        onAcknowledge={handleAcknowledge}
-        onResolve={(alertId) => handleResolve(alertId, selectedAlert?.is_resolved || selectedAlert?.resolved)}
-        onGenerateEFIR={handleGenerateEFIR}
-      />
     </div>
   );
 };

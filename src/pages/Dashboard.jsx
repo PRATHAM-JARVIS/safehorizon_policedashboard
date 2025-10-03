@@ -43,9 +43,6 @@ const Dashboard = () => {
     alertStats
   } = useWebSocketContext();
 
-
-
-  // Helper function to calculate alerts chart data
   const calculateAlertsChartData = (alerts) => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const chartData = [];
@@ -73,7 +70,6 @@ const Dashboard = () => {
     return chartData;
   };
 
-  // Helper function to calculate safety score distribution
   const calculateSafetyScoreData = (tourists) => {
     const distribution = [
       { score: '90-100', count: 0, color: '#10b981' },
@@ -96,10 +92,9 @@ const Dashboard = () => {
       else distribution[6].count++;
     });
     
-    return distribution.filter(d => d.count > 0); // Only show non-zero categories
+    return distribution.filter(d => d.count > 0);
   };
 
-  // Chart data state - calculated from real API data
   const [alertsChartData, setAlertsChartData] = useState([]);
   const [safetyScoreData, setSafetyScoreData] = useState([]);
 
@@ -112,11 +107,10 @@ const Dashboard = () => {
         let dashboardStats = null;
         try {
           dashboardStats = await adminAPI.getPlatformStats('24h');
-        } catch {
-          // Fallback to manual stats - silently ignore errors
+        } catch (err) {
+          console.error('Stats fetch failed:', err);
         }
 
-        // If platform stats available, use them directly
         if (dashboardStats && (dashboardStats.users || dashboardStats.activity || dashboardStats.safety)) {
           setStats({
             activeTourists: dashboardStats.users?.active_tourists || 0,
@@ -125,7 +119,6 @@ const Dashboard = () => {
             tripsInProgress: dashboardStats.activity?.active_trips || 0,
           });
 
-          // Enhanced chart data with proper structure
           if (dashboardStats.alert_trends) {
             const chartData = dashboardStats.alert_trends.map(trend => ({
               name: new Date(trend.date).toLocaleDateString('en-US', { weekday: 'short' }),

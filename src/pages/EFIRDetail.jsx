@@ -12,7 +12,8 @@ import {
   AlertTriangle,
   ArrowLeft,
   Shield,
-  Clock
+  Clock,
+  CheckCircle
 } from 'lucide-react';
 
 const EFIRDetail = () => {
@@ -25,7 +26,6 @@ const EFIRDetail = () => {
     const fetchEFIRDetail = async () => {
       try {
         setLoading(true);
-        // In a real app, fetch specific E-FIR by ID
         const response = await efirAPI.listEFIRs({ limit: 100, offset: 0 });
         const efirsList = response.efir_records || [];
         const foundEfir = efirsList.find(e => e.efir_id?.toString() === id || e.fir_number === id);

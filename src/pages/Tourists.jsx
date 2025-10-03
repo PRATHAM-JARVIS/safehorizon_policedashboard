@@ -31,13 +31,11 @@ const Tourists = () => {
       try {
         setLoading(true);
         const response = await touristAPI.getActiveTourists();
-        // Handle documented response structure: direct array
         const touristsList = Array.isArray(response) ? response : [];
         setTourists(touristsList);
         setFilteredTourists(touristsList);
       } catch (error) {
         console.error('Failed to fetch tourists:', error);
-        // Show error state
         setTourists([]);
         setFilteredTourists([]);
       } finally {
@@ -47,7 +45,6 @@ const Tourists = () => {
 
     fetchTourists();
     
-    // Set up periodic refresh for tourist data (every 15 seconds for real-time tracking)
     const refreshInterval = setInterval(fetchTourists, 15000);
     
     return () => clearInterval(refreshInterval);
@@ -56,7 +53,6 @@ const Tourists = () => {
   useEffect(() => {
     let filtered = tourists;
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(tourist =>
         tourist.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -64,7 +60,6 @@ const Tourists = () => {
       );
     }
 
-    // Safety score filter
     if (filterSafety !== 'all') {
       filtered = filtered.filter(tourist => {
         const score = tourist.safety_score || 0;
