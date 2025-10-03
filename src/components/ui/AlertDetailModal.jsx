@@ -14,38 +14,30 @@ import {
   Navigation
 } from 'lucide-react';
 
-export const AlertDetailModal = ({ alert, isOpen, onClose }) => {
+export const AlertDetailModal = ({ alert, isOpen, onClose, onAcknowledge, onResolve, onGenerateEFIR }) => {
   if (!isOpen || !alert) return null;
 
   const handleAcknowledge = async () => {
     console.log('Acknowledging alert:', alert.id);
-    // This will be handled by parent component
-    if (window.alertsAPI) {
-      try {
-        await window.alertsAPI.acknowledgeAlert(alert.id, 'Alert acknowledged from modal');
-      } catch (error) {
-        console.error('Failed to acknowledge:', error);
-      }
+    if (onAcknowledge) {
+      await onAcknowledge(alert.id);
     }
     onClose();
   };
 
   const handleResolve = async () => {
     console.log('Resolving alert:', alert.id);
-    // This will be handled by parent component
-    if (window.alertsAPI) {
-      try {
-        await window.alertsAPI.resolveAlert(alert.id, 'Resolved from modal', 'Action completed');
-      } catch (error) {
-        console.error('Failed to resolve:', error);
-      }
+    if (onResolve) {
+      await onResolve(alert.id);
     }
     onClose();
   };
 
   const handleGenerateEFIR = () => {
     console.log('Generating E-FIR for alert:', alert.id);
-    window.alert('E-FIR generation initiated for Alert #' + alert.id);
+    if (onGenerateEFIR) {
+      onGenerateEFIR(alert);
+    }
     onClose();
   };
 
@@ -128,15 +120,25 @@ export const AlertDetailModal = ({ alert, isOpen, onClose }) => {
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Name:</span>
-                      <span>{alert.tourist_name}</span>
+                      <span className="font-medium">
+                        {alert.tourist?.name || alert.tourist_name || 'Unknown Tourist'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Tourist ID:</span>
-                      <span className="font-mono">{alert.tourist_id}</span>
+                      <span className="font-mono">
+                        {alert.tourist?.id || alert.tourist_id || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Email:</span>
+                      <span className="text-sm">
+                        {alert.tourist?.email || 'N/A'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Location:</span>
-                      <span className="text-right">
+                      <span className="text-right text-sm">
                         {alert.location?.address || alert.location || 'Unknown location'}
                       </span>
                     </div>

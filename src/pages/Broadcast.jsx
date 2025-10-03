@@ -1,40 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card.jsx';
 import { Button } from '../components/ui/button.jsx';
 import { Input, Label } from '../components/ui/input.jsx';
 import { Badge } from '../components/ui/badge.jsx';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table.jsx';
 import { broadcastAPI } from '../api/services.js';
-import NotificationTester from '../components/NotificationTester.jsx';
-import BroadcastTemplates from '../components/BroadcastTemplates.jsx';
-import BroadcastAnalytics from '../components/BroadcastAnalytics.jsx';
 import {
   Radio,
   MapPin,
   Globe,
   Square,
   Send,
-  History,
-  Eye,
-  X,
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  Users,
   Bell,
-  TestTube,
-  FileText,
-  BarChart3
+  AlertCircle
 } from 'lucide-react';
 
 const Broadcast = () => {
-  const [activeTab, setActiveTab] = useState('send'); // 'send' | 'history' | 'test' | 'templates' | 'analytics'
   const [broadcastType, setBroadcastType] = useState('radius'); // 'radius' | 'zone' | 'region' | 'all'
   const [broadcasting, setBroadcasting] = useState(false);
-  const [broadcasts, setBroadcasts] = useState([]);
-  const [selectedBroadcast, setSelectedBroadcast] = useState(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   // Form data for different broadcast types
   const [radiusForm, setRadiusForm] = useState({
@@ -78,27 +60,7 @@ const Broadcast = () => {
     action_required: 'follow_guidelines',
   });
 
-  // Fetch broadcast history
-  useEffect(() => {
-    if (activeTab === 'history') {
-      fetchBroadcastHistory();
-    }
-  }, [activeTab]);
 
-  const fetchBroadcastHistory = async () => {
-    try {
-      setLoading(true);
-      const response = await broadcastAPI.getBroadcastHistory({ limit: 100 });
-      setBroadcasts(response.broadcasts || []);
-    } catch (error) {
-      console.error('Failed to fetch broadcast history:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Failed to load broadcast history';
-      alert(`❌ ${errorMsg}`);
-      setBroadcasts([]); // Set empty array on error
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleRadiusBroadcast = async (e) => {
     e.preventDefault();
@@ -162,9 +124,7 @@ const Broadcast = () => {
         action_required: 'plan_alternate_route',
         expires_at: '',
       });
-      
-      // Refresh history
-      if (activeTab === 'history') fetchBroadcastHistory();
+
     } catch (error) {
       console.error('Failed to send broadcast:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Unknown error occurred';
@@ -224,8 +184,6 @@ const Broadcast = () => {
         alert_type: 'security_threat',
         action_required: 'avoid_area',
       });
-      
-      if (activeTab === 'history') fetchBroadcastHistory();
     } catch (error) {
       console.error('Failed to send zone broadcast:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Unknown error occurred';
@@ -298,8 +256,6 @@ const Broadcast = () => {
         alert_type: 'weather_warning',
         action_required: 'stay_indoors',
       });
-      
-      if (activeTab === 'history') fetchBroadcastHistory();
     } catch (error) {
       console.error('Failed to send region broadcast:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Unknown error occurred';
@@ -357,8 +313,6 @@ const Broadcast = () => {
         alert_type: 'general_advisory',
         action_required: 'follow_guidelines',
       });
-      
-      if (activeTab === 'history') fetchBroadcastHistory();
     } catch (error) {
       console.error('Failed to send all broadcast:', error);
       const errorMsg = error.response?.data?.detail || error.message || 'Unknown error occurred';
@@ -368,151 +322,21 @@ const Broadcast = () => {
     }
   };
 
-  const viewBroadcastDetails = async (broadcast) => {
-    try {
-      const details = await broadcastAPI.getBroadcastDetails(broadcast.broadcast_id);
-      setSelectedBroadcast(details);
-      setShowDetailModal(true);
-    } catch (error) {
-      console.error('Failed to fetch broadcast details:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Failed to load broadcast details';
-      alert(`❌ ${errorMsg}`);
-    }
-  };
-
-  const getSeverityColor = (severity) => {
-    switch (severity?.toLowerCase()) {
-      case 'critical': return 'critical';
-      case 'high': return 'destructive';
-      case 'medium': return 'warning';
-      case 'low': return 'success';
-      default: return 'secondary';
-    }
-  };
-
-  const getBroadcastTypeIcon = (type) => {
-    switch (type) {
-      case 'radius': return Radio;
-      case 'zone': return MapPin;
-      case 'region': return Square;
-      case 'all': return Globe;
-      default: return Bell;
-    }
-  };
-
-  const handleTemplateSelect = (template) => {
-    // Set the broadcast type based on template
-    setBroadcastType(template.type);
-    
-    // Populate the appropriate form based on template type
-    if (template.type === 'all') {
-      setAllForm({
-        title: template.title,
-        message: template.message,
-        severity: template.severity,
-        alert_type: template.alert_type || 'general_advisory',
-        action_required: template.action_required || 'follow_guidelines',
-      });
-    } else if (template.type === 'radius') {
-      setRadiusForm({
-        center_latitude: template.center_latitude?.toString() || '',
-        center_longitude: template.center_longitude?.toString() || '',
-        radius_km: template.radius_km?.toString() || '5',
-        title: template.title,
-        message: template.message,
-        severity: template.severity,
-        alert_type: template.alert_type || 'traffic_alert',
-        action_required: template.action_required || 'plan_alternate_route',
-        expires_at: '',
-      });
-    } else if (template.type === 'zone') {
-      setZoneForm({
-        zone_id: '',
-        title: template.title,
-        message: template.message,
-        severity: template.severity,
-        alert_type: template.alert_type || 'security_threat',
-        action_required: template.action_required || 'avoid_area',
-      });
-    }
-    
-    // Switch to send tab
-    setActiveTab('send');
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Emergency Broadcast</h1>
-        <Badge variant="outline" className="text-lg px-4 py-2">
-          <Bell className="w-4 h-4 mr-2" />
-          Broadcast System
-        </Badge>
+      <div className="flex items-center justify-between pb-4 border-b">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Bell className="w-8 h-8" />
+            Emergency Broadcast
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">Send notifications to tourists</p>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex space-x-2 border-b">
-        <button
-          onClick={() => setActiveTab('send')}
-          className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-            activeTab === 'send'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Send className="w-4 h-4 inline mr-2" />
-          Send Broadcast
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-            activeTab === 'history'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <History className="w-4 h-4 inline mr-2" />
-          Broadcast History
-        </button>
-        <button
-          onClick={() => setActiveTab('templates')}
-          className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-            activeTab === 'templates'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <FileText className="w-4 h-4 inline mr-2" />
-          Templates
-        </button>
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-            activeTab === 'analytics'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4 inline mr-2" />
-          Analytics
-        </button>
-        <button
-          onClick={() => setActiveTab('test')}
-          className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-            activeTab === 'test'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <TestTube className="w-4 h-4 inline mr-2" />
-          Test Notifications
-        </button>
-      </div>
-
-      {/* Send Broadcast Tab */}
-      {activeTab === 'send' && (
-        <div className="space-y-6">
+      {/* Broadcast Content */}
+      <div className="space-y-6">
           {/* Broadcast Type Selector */}
           <Card>
             <CardHeader>
@@ -979,230 +803,7 @@ const Broadcast = () => {
               </CardContent>
             </Card>
           )}
-        </div>
-      )}
-
-      {/* Broadcast History Tab */}
-      {activeTab === 'history' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Broadcast History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : broadcasts.length === 0 ? (
-              <div className="text-center py-12">
-                <History className="w-16 h-16 mx-auto text-muted-foreground/30 mb-3" />
-                <h3 className="text-lg font-medium mb-1">No Broadcast History</h3>
-                <p className="text-sm text-muted-foreground">
-                  No broadcasts have been sent yet.
-                </p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Severity</TableHead>
-                    <TableHead>Tourists</TableHead>
-                    <TableHead>Ack Rate</TableHead>
-                    <TableHead>Sent At</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {broadcasts.map((broadcast) => {
-                    const TypeIcon = getBroadcastTypeIcon(broadcast.type);
-                    return (
-                      <TableRow key={broadcast.broadcast_id}>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <TypeIcon className="w-4 h-4 text-muted-foreground" />
-                            <span className="capitalize">{broadcast.type}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{broadcast.title}</TableCell>
-                        <TableCell>
-                          <Badge variant={getSeverityColor(broadcast.severity)}>
-                            {broadcast.severity}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-1">
-                            <Users className="w-3 h-3 text-muted-foreground" />
-                            <span>{broadcast.tourists_notified}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-1">
-                            {broadcast.acknowledgment_rate ? (
-                              <>
-                                <CheckCircle className="w-3 h-3 text-green-500" />
-                                <span>{broadcast.acknowledgment_rate || '0%'}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Clock className="w-3 h-3 text-muted-foreground" />
-                                <span>Pending</span>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(broadcast.sent_at).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => viewBroadcastDetails(broadcast)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Templates Tab */}
-      {activeTab === 'templates' && (
-        <BroadcastTemplates 
-          onSelectTemplate={handleTemplateSelect}
-          onClose={() => setActiveTab('send')}
-        />
-      )}
-
-      {/* Analytics Tab */}
-      {activeTab === 'analytics' && (
-        <BroadcastAnalytics />
-      )}
-
-      {/* Test Notifications Tab */}
-      {activeTab === 'test' && (
-        <NotificationTester />
-      )}
-
-      {/* Broadcast Detail Modal */}
-      {showDetailModal && selectedBroadcast && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-          <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto" style={{ zIndex: 10000 }}>
-            <CardHeader className="border-b">
-              <div className="flex items-center justify-between">
-                <CardTitle>Broadcast Details</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowDetailModal(false)}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="space-y-6">
-                {/* Broadcast Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Broadcast ID</p>
-                    <p className="font-mono text-sm">{selectedBroadcast.broadcast_id}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Type</p>
-                    <p className="capitalize">{selectedBroadcast.type}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Severity</p>
-                    <Badge variant={getSeverityColor(selectedBroadcast.severity)}>
-                      {selectedBroadcast.severity}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Sent At</p>
-                    <p>{new Date(selectedBroadcast.sent_at).toLocaleString()}</p>
-                  </div>
-                </div>
-
-                {/* Message Content */}
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Title</p>
-                  <p className="font-semibold text-lg">{selectedBroadcast.title}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Message</p>
-                  <p className="text-sm">{selectedBroadcast.message}</p>
-                </div>
-
-                {/* Statistics */}
-                <div className="grid grid-cols-4 gap-4 pt-4 border-t">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold">{selectedBroadcast.tourists_notified}</p>
-                    <p className="text-xs text-muted-foreground">Tourists Notified</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold">{selectedBroadcast.devices_notified}</p>
-                    <p className="text-xs text-muted-foreground">Devices Notified</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold">{selectedBroadcast.acknowledgment_count || 0}</p>
-                    <p className="text-xs text-muted-foreground">Acknowledgments</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold">{selectedBroadcast.acknowledgment_rate || '0%'}</p>
-                    <p className="text-xs text-muted-foreground">Acknowledgment Rate</p>
-                  </div>
-                </div>
-
-                {/* Acknowledgments */}
-                {selectedBroadcast.acknowledgments && selectedBroadcast.acknowledgments.length > 0 && (
-                  <div className="pt-6 border-t">
-                    <h3 className="text-lg font-semibold mb-4">Tourist Responses</h3>
-                    <div className="space-y-3">
-                      {selectedBroadcast.acknowledgments.map((ack, index) => (
-                        <div key={index} className="p-4 border rounded-lg">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <p className="font-medium">{ack.tourist_name}</p>
-                              <p className="text-sm text-muted-foreground">{ack.tourist_email}</p>
-                            </div>
-                            <Badge variant={
-                              ack.status === 'need_help' ? 'destructive' :
-                              ack.status === 'safe' ? 'success' : 'secondary'
-                            }>
-                              {ack.status === 'need_help' ? '🚨 Needs Help' :
-                               ack.status === 'safe' ? '✅ Safe' : '📝 Acknowledged'}
-                            </Badge>
-                          </div>
-                          {ack.notes && (
-                            <p className="text-sm text-muted-foreground mb-2">{ack.notes}</p>
-                          )}
-                          {ack.location && (
-                            <p className="text-xs text-muted-foreground">
-                              📍 Location: {ack.location.lat}, {ack.location.lon}
-                            </p>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-2">
-                            {new Date(ack.acknowledged_at).toLocaleString()}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      </div>
     </div>
   );
 };

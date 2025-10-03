@@ -294,6 +294,7 @@ export const zonesAPI = {
   // Authority zone management
   manageZones: async () => {
     const response = await apiClient.get('/api/zones/manage');
+    // Return the response data directly (API returns array)
     return response.data;
   },
 

@@ -70,14 +70,14 @@ const newAlertIcon = L.divIcon({
 const alertIcon = createCustomIcon('#ef4444', '<path d="m21 16-4 4-4-4"/><path d="M21 4L12 13"/><path d="M9 4h12v12"/>');
 const sosIcon = createCustomIcon('#dc2626', '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>');
 
-// Simple Circle-based Heatmap Component
+// Enhanced Circle-based Heatmap Component with better visibility
 const HeatmapCircles = ({ points, intensityKey = 'intensity' }) => {
   if (!points || points.length === 0) {
     console.log('🗺️ Heatmap: No points to render');
     return null;
   }
 
-  console.log('🗺️ Heatmap: Rendering', points.length, 'points');
+  console.log('� Heatmap: Rendering', points.length, 'heat points');
 
   return (
     <>
@@ -89,33 +89,117 @@ const HeatmapCircles = ({ points, intensityKey = 'intensity' }) => {
           return null;
         }
 
-        const intensity = point[intensityKey] !== undefined ? point[intensityKey] : 0.5;
+        // Normalize intensity to 0-1 range
+        let intensity = point[intensityKey] !== undefined ? point[intensityKey] : 0.5;
         
-        // Color gradient based on intensity
+        // If intensity is a safety score (0-100), convert to 0-1 scale
+        if (intensity > 1) {
+          intensity = 1 - (intensity / 100); // Invert: low score = high risk = high intensity
+        }
+        
+        // Enhanced color gradient with more vibrant colors
         const getColor = (i) => {
-          if (i >= 0.8) return '#ef4444'; // red
-          if (i >= 0.6) return '#f59e0b'; // orange
-          if (i >= 0.4) return '#eab308'; // yellow
-          if (i >= 0.2) return '#84cc16'; // lime
-          return '#22c55e'; // green
+          if (i >= 0.8) return '#dc2626'; // Bright red (Critical)
+          if (i >= 0.6) return '#ea580c'; // Orange-red (High)
+          if (i >= 0.4) return '#f59e0b'; // Orange (Medium)
+          if (i >= 0.2) return '#fbbf24'; // Yellow (Low)
+          return '#10b981'; // Green (Safe)
+        };
+        
+        // Dynamic radius based on intensity
+        const getRadius = (i) => {
+          return 300 + (i * 500); // Range: 300m - 800m
         };
 
+        const color = getColor(intensity);
+        const radius = getRadius(intensity);
+
         return (
-          <Circle
-            key={`heatpoint-${index}`}
-            center={[lat, lng]}
-            radius={500} // Increased from 200 to 500 meters for better visibility
-            pathOptions={{
-              fillColor: getColor(intensity),
-              fillOpacity: 0.4 + (intensity * 0.4), // Increased base opacity
-              color: getColor(intensity),
-              opacity: 0.7, // Increased border opacity
-              weight: 2 // Increased border weight
-            }}
-          />
+          <React.Fragment key={`heatpoint-${index}`}>
+            {/* Outer glow circle for high-intensity areas */}
+            {intensity > 0.6 && (
+              <Circle
+                center={[lat, lng]}
+                radius={radius * 1.5}
+                pathOptions={{
+                  fillColor: color,
+                  fillOpacity: 0.1,
+                  color: color,
+                  opacity: 0.2,
+                  weight: 0
+                }}
+              />
+            )}
+            
+            {/* Main heat circle */}
+            <Circle
+              center={[lat, lng]}
+              radius={radius}
+              pathOptions={{
+                fillColor: color,
+                fillOpacity: 0.4 + (intensity * 0.3), // 0.4 to 0.7 opacity
+                color: color,
+                opacity: 0.8,
+                weight: intensity > 0.5 ? 3 : 2,
+                className: intensity > 0.7 ? 'pulse-border' : ''
+              }}
+            />
+            
+            {/* Core circle for high intensity */}
+            {intensity > 0.5 && (
+              <Circle
+                center={[lat, lng]}
+                radius={radius * 0.3}
+                pathOptions={{
+                  fillColor: color,
+                  fillOpacity: 0.8,
+                  color: '#ffffff',
+                  opacity: 1,
+                  weight: 2
+                }}
+              />
+            )}
+          </React.Fragment>
         );
       })}
     </>
+  );
+};
+
+// Heatmap Legend Component
+const HeatmapLegend = () => {
+  return (
+    <div className="absolute bottom-4 left-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 z-[1000] border border-gray-200 dark:border-gray-700">
+      <div className="text-xs font-semibold mb-2 flex items-center gap-2">
+        <Activity className="w-3 h-3" />
+        Risk Heatmap
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-[#dc2626] border-2 border-white shadow-sm"></div>
+          <span className="text-[10px] text-gray-700 dark:text-gray-300">Critical Risk (80-100%)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-[#ea580c] border-2 border-white shadow-sm"></div>
+          <span className="text-[10px] text-gray-700 dark:text-gray-300">High Risk (60-80%)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-[#f59e0b] border-2 border-white shadow-sm"></div>
+          <span className="text-[10px] text-gray-700 dark:text-gray-300">Medium Risk (40-60%)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-[#fbbf24] border-2 border-white shadow-sm"></div>
+          <span className="text-[10px] text-gray-700 dark:text-gray-300">Low Risk (20-40%)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-[#10b981] border-2 border-white shadow-sm"></div>
+          <span className="text-[10px] text-gray-700 dark:text-gray-300">Safe (0-20%)</span>
+        </div>
+      </div>
+      <div className="text-[9px] text-gray-500 dark:text-gray-400 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+        Larger circles = Higher risk concentration
+      </div>
+    </div>
   );
 };
 
@@ -228,47 +312,70 @@ export const MapComponent = ({
   
   console.log('🧭 Map Component - Tourists:', safeTourists.length, 'total,', highRiskTourists.length, 'high-risk');
   const safeAlerts = Array.isArray(alerts) ? alerts.filter(a => a && a.coordinates && a.coordinates.lat && a.coordinates.lon) : [];
-  const safeZones = Array.isArray(zones) ? zones.filter(z => {
-    const hasCoordinates = z && z.coordinates && Array.isArray(z.coordinates);
-    const hasMinPoints = hasCoordinates && z.coordinates.length >= 3; // Need at least 3 points for polygon
+  
+  // Process zones - handle both polygon and circle-based zones
+  const processedZones = Array.isArray(zones) ? zones.map(z => {
+    if (!z) return null;
     
-    if (hasCoordinates && !hasMinPoints) {
-      console.warn('⚠️ Zone has too few coordinates:', {
-        id: z.id,
-        name: z.name,
-        coordinatesCount: z.coordinates.length,
-        needsMinimum: 3
-      });
+    // Check if it's a polygon-based zone (has coordinates array)
+    if (z.coordinates && Array.isArray(z.coordinates) && z.coordinates.length >= 3) {
+      return {
+        ...z,
+        type: 'polygon',
+        zone_type: z.zone_type || z.type || 'safe',
+        coordinates: z.coordinates.map(coord => {
+          // Convert GeoJSON format [lon, lat] to Leaflet format [lat, lon]
+          if (Array.isArray(coord)) {
+            return [coord[1], coord[0]]; // Swap lon, lat to lat, lon
+          } else if (coord.lat !== undefined && coord.lon !== undefined) {
+            return [coord.lat, coord.lon];
+          } else if (coord.latitude !== undefined && coord.longitude !== undefined) {
+            return [coord.latitude, coord.longitude];
+          }
+          return coord;
+        })
+      };
     }
     
-    return hasMinPoints;
-  }).map(zone => ({
-    ...zone,
-    // Convert GeoJSON format [lon, lat] to Leaflet format [lat, lon]
-    coordinates: zone.coordinates.map(coord => {
-      // Handle both [lon, lat] array and {lat, lon} object formats
-      if (Array.isArray(coord)) {
-        return [coord[1], coord[0]]; // Swap lon, lat to lat, lon
-      } else if (coord.lat !== undefined && coord.lon !== undefined) {
-        return [coord.lat, coord.lon];
-      } else if (coord.latitude !== undefined && coord.longitude !== undefined) {
-        return [coord.latitude, coord.longitude];
-      }
-      return coord;
-    })
-  })) : [];
+    // Check if it's a circle-based zone (has center and radius)
+    if (z.center && z.center.lat && z.center.lon && z.radius_meters) {
+      return {
+        ...z,
+        type: 'circle',
+        zone_type: z.zone_type || z.type || 'safe',
+        center: [z.center.lat, z.center.lon],
+        radius: z.radius_meters
+      };
+    }
+    
+    console.warn('⚠️ Zone has invalid format:', {
+      id: z.id,
+      name: z.name,
+      hasCoordinates: !!z.coordinates,
+      hasCenter: !!z.center,
+      hasRadius: !!z.radius_meters
+    });
+    
+    return null;
+  }).filter(z => z !== null) : [];
+  
+  const polygonZones = processedZones.filter(z => z.type === 'polygon');
+  const circleZones = processedZones.filter(z => z.type === 'circle');
   
   console.log('🗺️ Map Component - Zones:', {
     totalZones: zones?.length || 0,
-    safeZones: safeZones.length,
-    zonesData: safeZones.map(z => ({
+    rawZonesData: zones,
+    processedZones: processedZones.length,
+    polygonZones: polygonZones.length,
+    circleZones: circleZones.length,
+    zonesData: processedZones.map(z => ({
       id: z.id,
       name: z.name,
-      type: z.zone_type,
+      type: z.type,
+      zone_type: z.zone_type,
       coordinatesCount: z.coordinates?.length,
-      firstCoord: z.coordinates?.[0],
-      lastCoord: z.coordinates?.[z.coordinates?.length - 1],
-      coordinateFormat: 'Leaflet [lat, lon]'
+      center: z.center,
+      radius: z.radius
     }))
   });
 
@@ -296,10 +403,23 @@ export const MapComponent = ({
 
         {/* Heatmap Layer (Circle-based) */}
         {showHeatmap && heatmapData && (
-          <HeatmapCircles 
-            points={heatmapData} 
-            intensityKey={heatmapIntensityKey}
-          />
+          <>
+            <HeatmapCircles 
+              points={heatmapData} 
+              intensityKey={heatmapIntensityKey}
+            />
+            <HeatmapLegend />
+          </>
+        )}
+        
+        {/* Heatmap Info Message when enabled */}
+        {showHeatmap && (!heatmapData || heatmapData.length === 0) && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-4 py-2 rounded-lg shadow-lg z-[1000] text-sm">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              <span>Heatmap enabled but no risk data available</span>
+            </div>
+          </div>
         )}
 
         {/* Zone Drawing Component */}
@@ -310,10 +430,10 @@ export const MapComponent = ({
           />
         )}
 
-        {/* Render Zones */}
-        {safeZones.map((zone) => (
+        {/* Render Polygon Zones */}
+        {polygonZones.map((zone) => (
           <Polygon
-            key={zone.id}
+            key={`polygon-${zone.id}`}
             positions={zone.coordinates}
             color={getZoneColor(zone.zone_type)}
             fillColor={getZoneColor(zone.zone_type)}
@@ -331,10 +451,44 @@ export const MapComponent = ({
                     {zone.zone_type}
                   </Badge>
                 </div>
-                <p className="text-sm text-gray-600">{zone.description}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">{zone.description || 'No description'}</p>
               </div>
             </Popup>
           </Polygon>
+        ))}
+
+        {/* Render Circle Zones */}
+        {circleZones.map((zone) => (
+          <Circle
+            key={`circle-${zone.id}`}
+            center={zone.center}
+            radius={zone.radius}
+            pathOptions={{
+              color: getZoneColor(zone.zone_type),
+              fillColor: getZoneColor(zone.zone_type),
+              fillOpacity: 0.3,
+              weight: 2
+            }}
+            eventHandlers={{
+              click: () => onZoneClick && onZoneClick(zone),
+            }}
+          >
+            <Popup>
+              <div className="p-2">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Shield className="w-4 h-4" />
+                  <span className="font-semibold">{zone.name}</span>
+                  <Badge variant={zone.zone_type === 'restricted' ? 'destructive' : zone.zone_type === 'risky' ? 'warning' : 'success'}>
+                    {zone.zone_type}
+                  </Badge>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-300">{zone.description || 'No description'}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Radius: {zone.radius}m {zone.is_active ? '• Active' : ''}
+                </p>
+              </div>
+            </Popup>
+          </Circle>
         ))}
 
         {/* Render High-Risk Tourist Markers (Safety Score < 50) */}

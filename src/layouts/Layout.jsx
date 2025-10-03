@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.js';
 import { useAppStore } from '../store/appStore.js';
+import AlertNotificationBridge from '../components/AlertNotificationBridge.jsx';
 import {
   Shield,
   BarChart3,
@@ -214,6 +215,9 @@ const Layout = () => {
           <Outlet />
         </main>
       </div>
+      
+      {/* Real-time Alert Notifications */}
+      <AlertNotificationBridge />
     </div>
   );
 };

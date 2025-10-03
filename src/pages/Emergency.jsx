@@ -57,19 +57,17 @@ const Emergency = () => {
       setBroadcasting(true);
       
       const alertData = {
+        center_latitude: parseFloat(formData.center_lat),
+        center_longitude: parseFloat(formData.center_lon),
+        radius_km: parseFloat(formData.radius_km),
         title: formData.title,
         message: formData.message,
-        area: {
-          center_lat: parseFloat(formData.center_lat),
-          center_lon: parseFloat(formData.center_lon),
-          radius_km: parseFloat(formData.radius_km)
-        },
-        severity: formData.severity,
-        evacuation_points: formData.evacuation_points
+        severity: formData.severity.toUpperCase(),
+        alert_type: 'emergency_alert',
+        action_required: 'immediate_action_required'
       };
 
-      const result = await emergencyAPI.broadcastEmergencyAlert(alertData);
-      console.log('Emergency broadcast result:', result);
+      const result = await emergencyAPI.broadcastToRadius(alertData);
       
       setLastBroadcast(result);
       
@@ -85,12 +83,11 @@ const Emergency = () => {
       });
 
       alert(
-        `Emergency Alert Broadcast Successfully!\n\n` +
-        `Alert ID: ${result.alert_id || 'N/A'}\n` +
-        `Tourists Notified: ${result.tourists_notified || 'N/A'}\n` +
-        `Push Notifications: ${result.notifications?.push || 'N/A'}\n` +
-        `SMS: ${result.notifications?.sms || 'N/A'}\n` +
-        `Email: ${result.notifications?.email || 'N/A'}`
+        `✅ Emergency Alert Broadcast Successfully!\n\n` +
+        `Broadcast ID: ${result.broadcast_id || 'N/A'}\n` +
+        `Tourists Notified: ${result.tourists_notified || 0}\n` +
+        `Devices Notified: ${result.devices_notified || 0}\n` +
+        `Area Covered: ${result.area_covered || `${formData.radius_km} km radius`}`
       );
     } catch (error) {
       console.error('Failed to broadcast emergency alert:', error);

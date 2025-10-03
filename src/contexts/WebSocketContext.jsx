@@ -65,11 +65,17 @@ export const WebSocketProvider = ({ children }) => {
     },
     onMessage: (data) => {
       console.log('📨 Global alert received:', data);
+      console.log('🔍 Alert type:', data.type);
       
       // Handle different message types
       if (data.type === 'alert' || data.type === 'new_alert') {
         const alertWithTimestamp = { ...data, timestamp: data.timestamp || new Date().toISOString() };
-        setRealtimeAlerts(prev => [alertWithTimestamp, ...prev.slice(0, 19)]); // Keep last 20 alerts
+        console.log('✅ Adding alert to realtimeAlerts:', alertWithTimestamp);
+        setRealtimeAlerts(prev => {
+          const newList = [alertWithTimestamp, ...prev.slice(0, 19)];
+          console.log('📊 Updated realtimeAlerts count:', newList.length);
+          return newList;
+        }); // Keep last 20 alerts
         setAlertStats(prev => ({
           ...prev,
           alertsToday: prev.alertsToday + 1

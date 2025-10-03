@@ -14,7 +14,8 @@ import {
   Filter,
   Clock,
   Activity,
-  Shield
+  Shield,
+  AlertTriangle
 } from 'lucide-react';
 
 const Tourists = () => {
@@ -113,60 +114,123 @@ const Tourists = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Tourists</h1>
-        <Badge variant="outline" className="text-lg px-3 py-1">
-          {filteredTourists.length}
-        </Badge>
+      {/* Header with Stats */}
+      <div>
+        <h1 className="text-3xl font-bold mb-6">Tourist Management</h1>
+        
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-l-4 border-l-blue-500">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-lg">
+                  <Users className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground font-medium">Total Active</p>
+                  <p className="text-2xl font-bold">{tourists.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-green-500">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="bg-green-100 dark:bg-green-900 p-3 rounded-lg">
+                  <Shield className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground font-medium">Safe</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {tourists.filter(t => (t.safety_score || 0) >= 80).length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-yellow-500">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-lg">
+                  <Activity className="w-5 h-5 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground font-medium">Caution</p>
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {tourists.filter(t => {
+                      const score = t.safety_score || 0;
+                      return score >= 50 && score < 80;
+                    }).length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-red-500">
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="bg-red-100 dark:bg-red-900 p-3 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground font-medium">At Risk</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {tourists.filter(t => (t.safety_score || 0) < 50).length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Search and Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
-                  placeholder="Search tourists by name or email..."
+                  placeholder="Search by name or email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <Filter className="w-4 h-4 text-muted-foreground" />
-              <select
-                value={filterSafety}
-                onChange={(e) => setFilterSafety(e.target.value)}
-                className="border border-input bg-transparent rounded-md px-3 py-2 text-sm"
-              >
-                <option value="all">All Safety Levels</option>
-                <option value="high">Safe (80+)</option>
-                <option value="medium">Caution (50-79)</option>
-                <option value="low">Risk (&lt;50)</option>
-              </select>
-            </div>
+            <select
+              value={filterSafety}
+              onChange={(e) => setFilterSafety(e.target.value)}
+              className="border border-input bg-background rounded-md px-4 py-2 text-sm min-w-[180px]"
+            >
+              <option value="all">All Safety Levels</option>
+              <option value="high">Safe (80+)</option>
+              <option value="medium">Caution (50-79)</option>
+              <option value="low">At Risk (&lt;50)</option>
+            </select>
           </div>
         </CardContent>
       </Card>
 
       {/* Tourists Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Active Tourists</CardTitle>
+          <Badge variant="outline">{filteredTourists.length} tourists</Badge>
         </CardHeader>
         <CardContent>
           {filteredTourists.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="text-center py-12">
               <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No tourists found</h3>
               <p className="text-muted-foreground">
                 {searchTerm || filterSafety !== 'all' 
-                  ? 'Try adjusting your search or filter criteria'
-                  : 'No active tourists are currently being tracked'
+                  ? 'Try adjusting your search or filter'
+                  : 'No active tourists are currently tracked'
                 }
               </p>
             </div>
@@ -174,65 +238,33 @@ const Tourists = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tourist</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead>Safety Score</TableHead>
-                  <TableHead>Location</TableHead>
                   <TableHead>Last Seen</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredTourists.map((tourist) => (
                   <TableRow key={tourist.id}>
+                    <TableCell className="font-medium">{tourist.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{tourist.email}</TableCell>
                     <TableCell>
-                      <div>
-                        <div className="font-medium">{tourist.name}</div>
-                        <div className="text-sm text-muted-foreground">{tourist.email}</div>
-                      </div>
+                      <Badge variant={getSafetyColor(tourist.safety_score)} className="font-medium">
+                        {tourist.safety_score || 0}% {getSafetyLabel(tourist.safety_score || 0)}
+                      </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={getSafetyColor(tourist.safety_score)}>
-                          {tourist.safety_score || 0}%
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {getSafetyLabel(tourist.safety_score || 0)}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {tourist.last_location ? (
-                        <div className="flex items-center space-x-1 text-sm">
-                          <MapPin className="w-4 h-4 text-muted-foreground" />
-                          <span>
-                            {tourist.last_location.lat.toFixed(4)}, {tourist.last_location.lon.toFixed(4)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">Unknown</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-1 text-sm">
-                        <Clock className="w-4 h-4 text-muted-foreground" />
-                        <span>{formatLastSeen(tourist.last_seen)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-green-600">Active</span>
-                    </TableCell>
+                    <TableCell className="text-sm">{formatLastSeen(tourist.last_seen)}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/tourists/${tourist.id}`)}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View Details
-                        </Button>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/tourists/${tourist.id}`)}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -241,60 +273,6 @@ const Tourists = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
-                <Shield className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Safe Tourists</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {tourists.filter(t => (t.safety_score || 0) >= 80).length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
-                <Activity className="w-6 h-6 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Need Attention</p>
-                <p className="text-2xl font-bold text-yellow-600">
-                  {tourists.filter(t => {
-                    const score = t.safety_score || 0;
-                    return score >= 50 && score < 80;
-                  }).length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
-                <Users className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">High Risk</p>
-                <p className="text-2xl font-bold text-red-600">
-                  {tourists.filter(t => (t.safety_score || 0) < 50).length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };

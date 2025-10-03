@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card.
 import { Badge } from '../components/ui/badge.jsx';
 import { Button } from '../components/ui/button.jsx';
 import { useWebSocketContext } from '../contexts/WebSocketContext.jsx';
-import { touristAPI, alertsAPI, zonesAPI, adminAPI } from '../api/services.js';
+import { touristAPI, alertsAPI, zonesAPI, adminAPI, efirAPI } from '../api/services.js';
 import { useAppStore } from '../store/appStore.js';
 import MapComponent from '../components/ui/Map.jsx';
 import AlertDetailModal from '../components/ui/AlertDetailModal.jsx';
@@ -34,27 +34,16 @@ const Dashboard = () => {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [error, setError] = useState(null);
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const { openModal } = useAppStore();
 
   // Use WebSocket context
   const {
-    lastMessage,
-    wsError,
-    connectionAttempts,
-    isConnected,
-    isConnecting,
-    connectWebSocket,
-    forceReconnect,
     realtimeAlerts,
     alertStats
   } = useWebSocketContext();
 
-  // Handle incoming WebSocket messages
-  useEffect(() => {
-    if (lastMessage) {
-      console.log('WebSocket message received:', lastMessage);
-    }
-  }, [lastMessage]);
+
 
   // Helper function to calculate alerts chart data
   const calculateAlertsChartData = (alerts) => {
@@ -123,9 +112,8 @@ const Dashboard = () => {
         let dashboardStats = null;
         try {
           dashboardStats = await adminAPI.getPlatformStats('24h');
-          console.log('Platform stats fetched:', dashboardStats);
-        } catch (statsErr) {
-          console.warn('Platform stats endpoint not available, falling back to manual calculation:', statsErr);
+        } catch {
+          // Fallback to manual stats - silently ignore errors
         }
 
         // If platform stats available, use them directly
@@ -173,8 +161,6 @@ const Dashboard = () => {
             
             tourists = Array.isArray(touristResponse) ? touristResponse : [];
             
-            console.log(`Fetched tourists: ${tourists.length} items from API`);
-            
             // Enrich tourist data with current location and safety info
             const enrichedTourists = await Promise.all(
               tourists.slice(0, 50).map(async (tourist) => { // Limit to avoid too many requests
@@ -188,8 +174,7 @@ const Dashboard = () => {
                     last_seen: locationData.last_seen || tourist.last_seen,
                     status: locationData.location?.status || 'unknown'
                   };
-                } catch (err) {
-                  console.warn(`Failed to get location for tourist ${tourist.id}:`, err);
+                } catch {
                   return {
                     ...tourist,
                     safety_score: tourist.safety_score || 75,
@@ -217,7 +202,6 @@ const Dashboard = () => {
               include_resolved: true 
             });
             alertsForChart = Array.isArray(alertResponse) ? alertResponse : [];
-            console.log('Fetched enhanced alerts:', alertsForChart.length);
             
             // Filter for today's alerts with improved criteria
             const todayStart = new Date();
@@ -257,7 +241,7 @@ const Dashboard = () => {
           };
           
           setStats(enhancedStats);
-          setRecentAlerts(alerts.slice(0, 20)); // Show latest 20 alerts
+          setRecentAlerts(alertsForChart); // Show all alerts
         }
         
         // Fetch zones for map display with enhanced data
@@ -265,7 +249,6 @@ const Dashboard = () => {
         try {
           const zonesResponse = await zonesAPI.manageZones();
           zonesData = Array.isArray(zonesResponse) ? zonesResponse : (zonesResponse.zones || []);
-          console.log('Fetched zones for map:', zonesData.length);
         } catch (err) {
           console.error('Failed to fetch zones:', err);
           zonesData = [];
@@ -304,32 +287,56 @@ const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // alertStats changes are handled within the effect
 
+  // Real-time alert updates from WebSocket
+  useEffect(() => {
+    console.log('📡 Dashboard: WebSocket realtimeAlerts updated', realtimeAlerts.length);
+    
+    if (realtimeAlerts.length > 0) {
+      // Merge WebSocket alerts with existing alerts (avoid duplicates)
+      setRecentAlerts(prev => {
+        const existingIds = new Set(prev.map(a => a.id || a.alert_id));
+        const newAlerts = realtimeAlerts.filter(alert => 
+          !existingIds.has(alert.id || alert.alert_id)
+        );
+        
+        if (newAlerts.length > 0) {
+          console.log('✅ Dashboard: Adding', newAlerts.length, 'new alerts to list');
+          return [...newAlerts, ...prev];
+        }
+        return prev;
+      });
+      
+      // Update stats with WebSocket data
+      setStats(prev => ({
+        ...prev,
+        alertsToday: prev.alertsToday + realtimeAlerts.filter(a => {
+          const alertTime = new Date(a.timestamp || a.created_at);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return alertTime >= today;
+        }).length,
+        sosCount: prev.sosCount + realtimeAlerts.filter(a => 
+          a.type === 'sos' || a.type === 'sos_alert'
+        ).length
+      }));
+    }
+  }, [realtimeAlerts]);
+
   const StatCard = (props) => {
-    const { icon: Icon, title, value, description, color = "text-primary" } = props;
+    const { icon: Icon, title, value, color = "text-primary" } = props;
     
     return (
-      <Card className="hover:shadow-md transition-all duration-200 border-l-4 border-l-transparent hover:border-l-primary/50">
+      <Card>
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <div className="flex items-center space-x-3 mb-3">
-                <div className={`p-2.5 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border shadow-sm`}>
-                  <Icon className={`h-5 w-5 ${color}`} />
-                </div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
+              <div className="flex items-center gap-2 mb-2">
+                <Icon className={`h-5 w-5 ${color}`} />
+                <p className="text-sm font-medium text-muted-foreground">{title}</p>
               </div>
-              <div className="space-y-1">
-                <p className={`text-3xl font-bold tracking-tight ${color}`}>
-                  {loading ? (
-                    <span className="animate-pulse">...</span>
-                  ) : (
-                    typeof value === 'number' ? value.toLocaleString() : value
-                  )}
-                </p>
-                {description && (
-                  <p className="text-sm text-muted-foreground">{description}</p>
-                )}
-              </div>
+              <p className={`text-2xl font-bold ${color}`}>
+                {loading ? '...' : typeof value === 'number' ? value.toLocaleString() : value}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -357,249 +364,153 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-8">
-      {/* Enhanced Header with WebSocket Status */}
-      <div className="bg-gradient-to-r from-background to-muted/30 -mx-6 px-6 py-6 rounded-lg border">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">
-              Dashboard
-            </h1>
-            <p className="text-muted-foreground text-lg">
-              Real-time monitoring of tourist safety and system alerts
-            </p>
-          </div>
-          <div className="flex items-center gap-6">
-            {/* WebSocket Connection Status with improved design */}
-            <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-background/80 border shadow-sm">
-              <div className={`w-2.5 h-2.5 rounded-full ${
-                isConnected ? 'bg-green-500 shadow-green-500/50 shadow-lg' : 
-                isConnecting ? 'bg-yellow-500 animate-pulse shadow-yellow-500/50 shadow-lg' : 
-                'bg-red-500 shadow-red-500/50 shadow-lg'
-              }`} />
-              <span className="text-sm font-medium">
-                {isConnected ? 'Live Connection' : 
-                 isConnecting ? 'Connecting...' : 
-                 `Offline ${connectionAttempts > 0 ? `(${connectionAttempts} attempts)` : ''}`}
-              </span>
-              {wsError && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={forceReconnect}
-                  className="text-xs h-6 px-2"
-                >
-                  Retry
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
+    <div className="space-y-6">
+      {/* Simple Header */}
+      <div>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">Real-time monitoring of tourist safety</p>
       </div>
 
-      {/* Enhanced Error State */}
+      {/* Error State */}
       {error && !loading && (
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="p-8">
-            <div className="text-center space-y-4">
-              <div className="flex justify-center">
-                <div className="p-3 rounded-full bg-destructive/10">
-                  <AlertTriangle className="w-8 h-8 text-destructive" />
-                </div>
+        <Card className="border-destructive/50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 text-destructive">
+              <AlertTriangle className="w-6 h-6" />
+              <div>
+                <h3 className="font-semibold">Connection Error</h3>
+                <p className="text-sm">{error}</p>
               </div>
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-destructive">Dashboard Connection Error</h3>
-                <p className="text-muted-foreground max-w-md mx-auto">{error}</p>
-              </div>
-              <Button onClick={() => window.location.reload()} className="mt-4">
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Retry Connection
-              </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Enhanced Loading State */}
+      {/* Loading State */}
       {loading && (
         <Card>
           <CardContent className="p-12">
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-              <p className="text-muted-foreground font-medium">Loading dashboard data...</p>
+            <div className="flex items-center justify-center space-y-4">
+              <Activity className="w-8 h-8 animate-spin text-primary" />
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Enhanced Stats Cards */}
+      {/* Stats Cards */}
       {!loading && !error && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             icon={Users}
             title="Active Tourists"
             value={stats.activeTourists}
-            description="Currently being tracked"
             color="text-blue-600"
           />
           <StatCard
             icon={AlertTriangle}
             title="Alerts Today"
             value={stats.alertsToday}
-            description="Require attention"
             color="text-amber-600"
           />
           <StatCard
             icon={Phone}
             title="SOS Alerts"
             value={stats.sosCount}
-            description="Emergency situations"
             color="text-red-600"
           />
           <StatCard
             icon={Route}
             title="Active Trips"
             value={stats.tripsInProgress}
-            description="Trips in progress"
             color="text-green-600"
           />
         </div>
       )}
 
-      {/* Enhanced Charts and Alerts Section */}
+      {/* Map and Alerts Section - Top Row */}
       {!loading && !error && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Alerts Chart */}
+          {/* Enhanced Map Overview - Top Left (2 columns) */}
           <Card className="xl:col-span-2">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center space-x-2">
-                <Activity className="w-5 h-5 text-primary" />
-                <span>Weekly Alert Summary</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={alertsChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="alerts" fill="#3b82f6" name="Total Alerts" />
-                <Bar dataKey="resolved" fill="#10b981" name="Resolved" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Safety Score Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Safety Score Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={safetyScoreData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  dataKey="count"
-                  label={({ score, count }) => `${score}: ${count}`}
-                >
-                  {safetyScoreData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-        </div>
-      )}
-
-      {/* Enhanced Alerts Feed and Map Section */}
-      {!loading && !error && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Live Alerts Feed */}
-          <Card className="xl:col-span-1">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center space-x-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-600" />
-                  <span>Live Alerts Feed</span>
+                  <MapPin className="w-5 h-5 text-blue-600" />
+                  <span>Live Map Overview</span>
                 </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={isConnected ? 'border-green-500 text-green-600' : 'border-red-500 text-red-600'}>
-                    <Activity className={`w-3 h-3 mr-1 ${isConnected ? 'text-green-500' : 'text-red-500'}`} />
-                    {isConnected ? 'Live' : 'Offline'}
-                  </Badge>
-                  {connectionAttempts > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      Retry {connectionAttempts}
-                    </Badge>
-                  )}
-                </div>
+                <Button
+                  variant={showHeatmap ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowHeatmap(!showHeatmap)}
+                  className="flex items-center gap-2"
+                >
+                  <Activity className="w-4 h-4" />
+                  {showHeatmap ? 'Hide' : 'Show'} Risk Heatmap
+                </Button>
               </div>
             </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-80 overflow-y-auto">
-              {/* Show real-time alerts first, then recent alerts */}
+            <CardContent>
+              <MapComponent
+                center={[28.6139, 77.2090]}
+                zoom={11}
+                tourists={tourists}
+                alerts={recentAlerts.filter(alert => alert.coordinates)}
+                zones={zones}
+                height="400px"
+                showHeatmap={showHeatmap}
+                heatmapData={tourists.map(t => ({
+                  lat: t.last_location?.lat || t.current_location?.lat || t.latitude,
+                  lon: t.last_location?.lon || t.current_location?.lon || t.longitude,
+                  intensity: 1 - ((t.safety_score || 75) / 100),
+                  touristId: t.id,
+                  name: t.name,
+                  safetyScore: t.safety_score || 75
+                })).filter(t => t.lat && t.lon)}
+                heatmapIntensityKey="intensity"
+                onTouristClick={(tourist) => openModal('touristDetail', tourist)}
+                onAlertClick={(alert) => {
+                  setSelectedAlert(alert);
+                  setShowAlertModal(true);
+                }}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Active Alerts - Top Right */}
+          <Card className="xl:col-span-1">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                <span>Active Alerts ({[...realtimeAlerts, ...recentAlerts.filter(alert => !realtimeAlerts.find(rt => rt.id === alert.id))].length})</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
               {[...realtimeAlerts, ...recentAlerts.filter(alert => !realtimeAlerts.find(rt => rt.id === alert.id))].length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p>No recent alerts</p>
-                  {!isConnected && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={connectWebSocket}
-                      className="mt-2"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Reconnect
-                    </Button>
-                  )}
                 </div>
               ) : (
-                [...realtimeAlerts, ...recentAlerts.filter(alert => !realtimeAlerts.find(rt => rt.id === alert.id))].slice(0, 10).map((alert, index) => {
-                  const SeverityIcon = getSeverityIcon(alert.type);
-                  const isRealtime = index < realtimeAlerts.length;
+                [...realtimeAlerts, ...recentAlerts.filter(alert => !realtimeAlerts.find(rt => rt.id === alert.id))].map((alert, index) => {
+                  const SeverityIcon = getSeverityIcon(alert.type || alert.alert_type || 'alert');
                   return (
                     <div
                       key={`${alert.id}-${index}`}
-                      className={`flex items-center space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors ${
-                        isRealtime ? 'border-l-4 border-l-blue-500 bg-blue-50/50 dark:bg-blue-950/20' : 'border-border'
-                      }`}
+                      className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50"
                     >
-                      <div className="flex-shrink-0">
-                        <SeverityIcon className="w-5 h-5 text-muted-foreground" />
-                      </div>
+                      <SeverityIcon className="w-5 h-5 text-muted-foreground" />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2">
-                          <p className="text-sm font-medium truncate">
-                            {alert.title || `${alert.type} Alert`}
-                          </p>
-                          <Badge variant={getSeverityColor(alert.severity)} className="text-xs">
-                            {alert.severity}
-                          </Badge>
-                          {isRealtime && (
-                            <Badge variant="outline" className="text-xs border-blue-500 text-blue-600">
-                              Live
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {alert.tourist_name || `Tourist ${alert.tourist_id}`}
+                        <p className="text-sm font-medium truncate">
+                          {alert.title || alert.description || `${alert.type || alert.alert_type || 'Alert'}`}
                         </p>
-                        <div className="flex items-center space-x-1 text-xs text-muted-foreground mt-1">
-                          <Clock className="w-3 h-3" />
-                          <span>
-                            {new Date(alert.created_at || alert.timestamp).toLocaleTimeString()}
-                          </span>
-                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {alert.tourist_name || alert.tourist?.name || `Tourist ${alert.tourist_id || 'Unknown'}`}
+                        </p>
                       </div>
+                      <Badge variant={getSeverityColor(alert.severity || 'medium')}>
+                        {alert.severity || 'medium'}
+                      </Badge>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -617,61 +528,60 @@ const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
-
-        {/* Enhanced Map Overview */}
-        <Card className="xl:col-span-2">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center space-x-2">
-              <MapPin className="w-5 h-5 text-blue-600" />
-              <span>Live Map Overview</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MapComponent
-              center={[28.6139, 77.2090]}
-              zoom={11}
-            tourists={tourists}
-            alerts={recentAlerts.filter(alert => alert.coordinates)}
-            zones={zones}
-            height="400px"
-            onTouristClick={(tourist) => openModal('touristDetail', tourist)}
-            onAlertClick={(alert) => {
-              setSelectedAlert(alert);
-              setShowAlertModal(true);
-            }}
-            onZoneClick={(zone) => console.log('Zone clicked:', zone)}
-          />
-        </CardContent>
-      </Card>
-      </div>
+        </div>
       )}
 
-      {/* Enhanced Quick Actions */}
+      {/* Charts Section - Bottom Row */}
       {!loading && !error && (
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center space-x-2">
-              <Activity className="w-5 h-5 text-primary" />
-              <span>Quick Actions</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Button className="h-20 flex flex-col space-y-2 transition-all duration-200 hover:scale-105" variant="outline">
-                <Users className="w-6 h-6 text-blue-600" />
-                <span className="font-medium">View All Tourists</span>
-              </Button>
-              <Button className="h-20 flex flex-col space-y-2 transition-all duration-200 hover:scale-105" variant="outline">
-                <MapPin className="w-6 h-6 text-green-600" />
-                <span className="font-medium">Manage Zones</span>
-              </Button>
-              <Button className="h-20 flex flex-col space-y-2 transition-all duration-200 hover:scale-105" variant="outline">
-                <AlertTriangle className="w-6 h-6 text-amber-600" />
-                <span className="font-medium">Review Alerts</span>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Weekly Alert Summary */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center space-x-2">
+                <Activity className="w-5 h-5 text-primary" />
+                <span>Weekly Alert Summary</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={alertsChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="alerts" fill="#3b82f6" name="Total Alerts" />
+                  <Bar dataKey="resolved" fill="#10b981" name="Resolved" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Safety Score Distribution */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Safety Score Distribution</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={safetyScoreData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="count"
+                    label={({ score, count }) => `${score}: ${count}`}
+                  >
+                    {safetyScoreData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Alert Detail Modal */}
@@ -682,7 +592,70 @@ const Dashboard = () => {
           setShowAlertModal(false);
           setSelectedAlert(null);
         }}
+        onAcknowledge={async (alertId) => {
+          try {
+            await alertsAPI.acknowledgeIncident(alertId, 'Alert acknowledged from dashboard');
+            setRecentAlerts(prev => prev.map(alert => 
+              alert.id === alertId ? { ...alert, is_acknowledged: true } : alert
+            ));
+          } catch (error) {
+            console.error('Failed to acknowledge alert:', error);
+            alert('Failed to acknowledge alert. Please try again.');
+          }
+        }}
+        onResolve={async (alertId) => {
+          try {
+            await alertsAPI.closeIncident(alertId, 'Incident resolved from dashboard');
+            setRecentAlerts(prev => prev.map(alert => 
+              alert.id === alertId ? { ...alert, is_resolved: true } : alert
+            ));
+          } catch (error) {
+            console.error('Failed to resolve alert:', error);
+            alert('Failed to resolve alert. Please try again.');
+          }
+        }}
+        onGenerateEFIR={async (alert) => {
+          try {
+            const efirData = {
+              alert_id: alert.id,
+              tourist_id: alert.tourist_id,
+              incident_type: alert.type || 'general',
+              description: alert.description || `${alert.type} alert at ${alert.location?.address || 'unknown location'}`,
+              location: alert.location ? {
+                latitude: alert.location.lat || alert.location.latitude,
+                longitude: alert.location.lon || alert.location.longitude
+              } : null,
+              witnesses: [],
+              evidence: []
+            };
+            
+            const efir = await efirAPI.generateEFIR(efirData);
+            alert(`E-FIR generated successfully! ID: ${efir.efir_id || efir.id}`);
+          } catch (error) {
+            console.error('Failed to generate E-FIR:', error);
+            alert('Failed to generate E-FIR. Please try again.');
+          }
+        }}
       />
+
+      {/* Debug Panel - Remove after testing */}
+      {import.meta.env.DEV && (
+        <div className="fixed bottom-4 left-4 bg-black/90 text-white p-4 rounded-lg text-xs font-mono z-50 max-w-xs">
+          <div className="font-bold mb-2 text-green-400">🔍 Real-Time Debug</div>
+          <div className="space-y-1">
+            <div>WebSocket Alerts: <span className="text-yellow-400">{realtimeAlerts.length}</span></div>
+            <div>Recent Alerts: <span className="text-blue-400">{recentAlerts.length}</span></div>
+            <div>Stats Today: <span className="text-purple-400">{stats.alertsToday}</span></div>
+            <div>Last Render: <span className="text-gray-400">{new Date().toLocaleTimeString()}</span></div>
+            {realtimeAlerts.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-600">
+                <div className="text-green-400">Latest Alert:</div>
+                <div className="text-xs truncate">{realtimeAlerts[0]?.title || realtimeAlerts[0]?.type}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

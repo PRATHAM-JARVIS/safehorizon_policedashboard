@@ -50,7 +50,6 @@ const TouristDetail = () => {
             // Handle documented response structure: tourist property
             return response.tourist || response;
           } catch (error) {
-            console.warn('Profile endpoint failed, trying track endpoint:', error.message);
             try {
               const fallback = await touristAPI.trackTourist(id);
               // Handle documented response structure: tourist property
@@ -68,7 +67,6 @@ const TouristDetail = () => {
             // Handle documented response structure: location property
             return response.location || response;
           } catch (error) {
-            console.warn('Current location fetch failed:', error.message);
             return null;
           }
         };
@@ -82,7 +80,6 @@ const TouristDetail = () => {
             // Handle documented response structure: locations property
             return response.locations || [];
           } catch (error) {
-            console.warn('Location history fetch failed:', error.message);
             return [];
           }
         };
@@ -93,7 +90,6 @@ const TouristDetail = () => {
             // Handle documented response structure: direct array
             return Array.isArray(response) ? response : [];
           } catch (error) {
-            console.warn('Alerts fetch failed:', error.message);
             return [];
           }
         };
@@ -121,16 +117,6 @@ const TouristDetail = () => {
         setRecentLocations(Array.isArray(locations) ? locations : []);
         setAlerts(Array.isArray(alerts) ? alerts : []);
         setError(null);
-
-        console.log('🔍 Tourist data loaded:', {
-          tourist: profile?.name || profile?.id,
-          profile: profile,
-          currentLocation: location,
-          hasLocation: !!location,
-          locationHasLatLon: location?.latitude && location?.longitude,
-          locationCount: locations.length,
-          alertCount: alerts.length
-        });
 
       } catch (err) {
         console.error('Failed to load tourist data:', err);
@@ -261,13 +247,6 @@ const TouristDetail = () => {
   };
   
   const locationData = getLocationData();
-  
-  console.log('📍 Final location data for map:', {
-    locationData,
-    hasCurrentLocation: !!currentLocation,
-    hasTouristLocation: !!(tourist.current_location || tourist.last_location || tourist.location),
-    recentLocationsCount: recentLocations.length
-  });
 
   const mapLocations = [];
   if (currentLocation?.latitude && currentLocation?.longitude) {

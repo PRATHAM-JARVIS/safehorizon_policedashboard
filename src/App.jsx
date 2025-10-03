@@ -4,6 +4,7 @@ import { useAuth } from './hooks/useAuth.js';
 import { useAppStore } from './store/appStore.js';
 import { WebSocketProvider } from './contexts/WebSocketContext.jsx';
 import ErrorBoundary from './components/ui/ErrorBoundary.jsx';
+import { ToastProvider } from './components/ui/toast.jsx';
 
 // Layout and Auth
 import Layout from './layouts/Layout.jsx';
@@ -17,6 +18,7 @@ import TouristDetail from './pages/TouristDetail.jsx';
 import Alerts from './pages/Alerts.jsx';
 import Zones from './pages/Zones.jsx';
 import EFIRs from './pages/EFIRs.jsx';
+import EFIRDetail from './pages/EFIRDetail.jsx';
 import Emergency from './pages/Emergency.jsx';
 import Broadcast from './pages/Broadcast.jsx';
 import Admin from './pages/Admin.jsx';
@@ -35,20 +37,21 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <Router>
-        <div className="min-h-screen bg-background text-foreground">
-          <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
-          
-          {/* Protected Routes with WebSocket */}
-          <Route path="/" element={
-            <ProtectedRoute>
-              <WebSocketProvider>
-                <Layout />
-              </WebSocketProvider>
-            </ProtectedRoute>
-          }>
+      <ToastProvider>
+        <Router>
+          <div className="min-h-screen bg-background text-foreground">
+            <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<Login />} />
+            
+            {/* Protected Routes with WebSocket */}
+            <Route path="/" element={
+              <ProtectedRoute>
+                <WebSocketProvider>
+                  <Layout />
+                </WebSocketProvider>
+              </ProtectedRoute>
+            }>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="tourists" element={<Tourists />} />
@@ -56,6 +59,7 @@ function App() {
             <Route path="alerts" element={<Alerts />} />
             <Route path="zones" element={<Zones />} />
             <Route path="efirs" element={<EFIRs />} />
+            <Route path="efirs/:id" element={<EFIRDetail />} />
             <Route path="broadcast" element={<Broadcast />} />
             <Route path="emergency" element={
               <ProtectedRoute requireAdmin={false}>
@@ -76,6 +80,9 @@ function App() {
           </Routes>
         </div>
       </Router>
+      </ToastProvider>
     </ErrorBoundary>
   );
-}export default App;
+}
+
+export default App;

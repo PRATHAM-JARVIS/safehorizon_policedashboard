@@ -25,6 +25,7 @@ const Zones = () => {
   const [zones, setZones] = useState([]);
   const [filteredZones, setFilteredZones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [sortBy, setSortBy] = useState('name');
@@ -44,13 +45,15 @@ const Zones = () => {
     const fetchZones = async () => {
       try {
         setLoading(true);
+        setError(null);
         const response = await zonesAPI.manageZones();
-        // Handle documented response structure: zones property
-        const zonesList = response.zones || [];
-        setZones(Array.isArray(zonesList) ? zonesList : []);
-        setFilteredZones(Array.isArray(zonesList) ? zonesList : []);
-      } catch (error) {
-        console.error('Failed to fetch zones:', error);
+        // API returns direct array of zones according to documentation
+        const zonesList = Array.isArray(response) ? response : (response.zones || response.data || []);
+        setZones(zonesList);
+        setFilteredZones(zonesList);
+      } catch (err) {
+        console.error('❌ Failed to fetch zones:', err);
+        setError(err.response?.data?.message || err.message || 'Failed to load zones');
         setZones([]);
         setFilteredZones([]);
       } finally {
@@ -167,13 +170,6 @@ const Zones = () => {
     }
   };
 
-  const formatCoordinates = (center) => {
-    if (center && center.lat && center.lon) {
-      return `${center.lat.toFixed(4)}, ${center.lon.toFixed(4)}`;
-    }
-    return 'Unknown';
-  };
-
   const handleViewZone = (zone) => {
     setSelectedZone(zone);
     setShowZoneDetail(true);
@@ -184,10 +180,39 @@ const Zones = () => {
     setShowZoneDetail(false);
   };
 
+  // Close modal on ESC key press
+  useEffect(() => {
+    const handleEscKey = (event) => {
+      if (event.key === 'Escape' && showZoneDetail) {
+        handleCloseDetail();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [showZoneDetail]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-destructive" />
+            <h3 className="text-lg font-semibold mb-2">Failed to Load Zones</h3>
+            <p className="text-sm text-muted-foreground mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} size="sm">
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -473,8 +498,16 @@ const Zones = () => {
 
       {/* Zone Detail Modal */}
       {showZoneDetail && selectedZone && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-          <Card className="w-full max-w-4xl max-h-[85vh] flex flex-col relative" style={{ zIndex: 10000 }}>
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" 
+          style={{ zIndex: 9999 }}
+          onClick={handleCloseDetail}
+        >
+          <Card 
+            className="w-full max-w-4xl max-h-[85vh] flex flex-col relative animate-in zoom-in-95 duration-200" 
+            style={{ zIndex: 10000 }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <CardHeader className="border-b flex-shrink-0 pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -500,84 +533,49 @@ const Zones = () => {
                   variant="ghost" 
                   size="sm" 
                   onClick={handleCloseDetail}
-                  className="h-7 w-7 p-0"
+                  className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                  title="Close (ESC)"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-4">
-              <div className="grid grid-cols-2 gap-4">
-                {/* Left: Details */}
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-muted p-2 rounded">
-                      <label className="text-xs text-muted-foreground block mb-1">Type</label>
-                      <Badge variant={getZoneTypeColor(selectedZone.zone_type || selectedZone.type)} className="text-xs">
-                        {(selectedZone.zone_type || selectedZone.type)?.toUpperCase()}
-                      </Badge>
-                    </div>
-                    <div className="bg-muted p-2 rounded">
-                      <label className="text-xs text-muted-foreground block mb-1">Status</label>
-                      <Badge variant={selectedZone.is_active ? 'success' : 'secondary'} className="text-xs">
-                        {selectedZone.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="bg-muted p-2 rounded">
-                    <label className="text-xs text-muted-foreground block mb-1">Coordinates</label>
-                    <div className="text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span>Points:</span>
-                        <span className="font-mono">{selectedZone.coordinates?.length || 0}</span>
-                      </div>
-                      {selectedZone.radius_meters && (
-                        <div className="flex justify-between">
-                          <span>Radius:</span>
-                          <span className="font-mono">{selectedZone.radius_meters}m</span>
-                        </div>
-                      )}
-                      {selectedZone.center && (
-                        <div className="flex justify-between">
-                          <span>Center:</span>
-                          <span className="font-mono text-[10px]">{formatCoordinates(selectedZone.center)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="bg-muted p-2 rounded">
-                    <label className="text-xs text-muted-foreground block mb-1">Created</label>
-                    <p className="text-xs">{new Date(selectedZone.created_at).toLocaleString()}</p>
-                  </div>
+              <div className="space-y-4">
+                {/* Details */}
+                <div className="flex gap-2">
+                  <Badge variant={getZoneTypeColor(selectedZone.zone_type || selectedZone.type)}>
+                    {(selectedZone.zone_type || selectedZone.type)?.toUpperCase()}
+                  </Badge>
+                  <Badge variant={selectedZone.is_active ? 'success' : 'secondary'}>
+                    {selectedZone.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
                 </div>
 
-                {/* Right: Map */}
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-2">Zone Preview</label>
-                  {selectedZone.coordinates && selectedZone.coordinates.length > 0 ? (
-                    <div className="rounded-lg overflow-hidden border h-[300px]">
-                      <MapComponent
-                        center={[
-                          selectedZone.center_latitude || selectedZone.coordinates.reduce((sum, coord) => sum + (Array.isArray(coord) ? coord[1] : coord.lat || 0), 0) / selectedZone.coordinates.length,
-                          selectedZone.center_longitude || selectedZone.coordinates.reduce((sum, coord) => sum + (Array.isArray(coord) ? coord[0] : coord.lon || 0), 0) / selectedZone.coordinates.length
-                        ]}
-                        zoom={14}
-                        zones={[{
-                          ...selectedZone,
-                          zone_type: selectedZone.zone_type || selectedZone.type || 'safe'
-                        }]}
-                        tourists={[]}
-                        alerts={[]}
-                        height="100%"
-                        showHeatmap={false}
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-[300px] flex items-center justify-center bg-muted rounded-lg">
-                      <p className="text-xs text-muted-foreground">No map data</p>
-                    </div>
-                  )}
-                </div>
+                {/* Map Preview */}
+                {selectedZone.coordinates && selectedZone.coordinates.length > 0 ? (
+                  <div className="rounded-lg overflow-hidden border h-[300px]">
+                    <MapComponent
+                      center={[
+                        selectedZone.center_latitude || selectedZone.coordinates.reduce((sum, coord) => sum + (Array.isArray(coord) ? coord[1] : coord.lat || 0), 0) / selectedZone.coordinates.length,
+                        selectedZone.center_longitude || selectedZone.coordinates.reduce((sum, coord) => sum + (Array.isArray(coord) ? coord[0] : coord.lon || 0), 0) / selectedZone.coordinates.length
+                      ]}
+                      zoom={14}
+                      zones={[{
+                        ...selectedZone,
+                        zone_type: selectedZone.zone_type || selectedZone.type || 'safe'
+                      }]}
+                      tourists={[]}
+                      alerts={[]}
+                      height="100%"
+                      showHeatmap={false}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">No map data</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

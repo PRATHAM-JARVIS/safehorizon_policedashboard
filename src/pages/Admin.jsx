@@ -123,7 +123,6 @@ const Admin = () => {
     try {
       setRetrainingModel(true);
       const result = await adminAPI.retrainModel(modelType, 30, false);
-      console.log('Model retraining initiated:', result);
       alert(`Model retraining started!\nJob ID: ${result.job_id || 'N/A'}\nEstimated time: ${result.estimated_duration_minutes || 15} minutes`);
     } catch (error) {
       console.error('Failed to retrain model:', error);
