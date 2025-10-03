@@ -478,14 +478,28 @@ const AlertDetail = () => {
                       alert.location.lon || alert.location.longitude
                     ]}
                     zoom={15}
-                    markers={[{
-                      position: [
-                        alert.location.lat || alert.location.latitude,
-                        alert.location.lon || alert.location.longitude
-                      ],
-                      popup: `Alert Location: ${alert.location.address || 'Unknown Address'}`,
-                      type: 'alert'
+                    alerts={[{
+                      id: alert.id,
+                      coordinates: {
+                        lat: alert.location.lat || alert.location.latitude,
+                        lon: alert.location.lon || alert.location.longitude
+                      },
+                      type: alert.type || 'alert',
+                      severity: alert.severity || 'medium',
+                      description: alert.description || 'Alert',
+                      timestamp: alert.timestamp || alert.created_at
                     }]}
+                    tourists={tourist && tourist.last_location ? [{
+                      id: tourist.id || alert.tourist_id,
+                      name: tourist.name || 'Tourist',
+                      current_location: {
+                        lat: tourist.last_location.latitude,
+                        lon: tourist.last_location.longitude,
+                        address: tourist.last_location.address
+                      },
+                      safety_score: tourist.safety_score || 75,
+                      last_seen: tourist.last_location.timestamp
+                    }] : []}
                   />
                 </div>
                 
@@ -539,25 +553,28 @@ const AlertDetail = () => {
                       tourist.last_location.longitude
                     ]}
                     zoom={15}
-                    markers={[
-                      {
-                        position: [
-                          tourist.last_location.latitude,
-                          tourist.last_location.longitude
-                        ],
-                        popup: `Last Location: ${new Date(tourist.last_location.timestamp).toLocaleString()}`,
-                        type: 'tourist'
+                    tourists={[{
+                      id: tourist.id || alert.tourist_id,
+                      name: tourist.name || 'Tourist',
+                      current_location: {
+                        lat: tourist.last_location.latitude,
+                        lon: tourist.last_location.longitude,
+                        address: tourist.last_location.address
                       },
-                      // Also show alert location if available
-                      ...(alert.location && (alert.location.lat || alert.location.latitude) ? [{
-                        position: [
-                          alert.location.lat || alert.location.latitude,
-                          alert.location.lon || alert.location.longitude
-                        ],
-                        popup: 'Alert Location',
-                        type: 'alert'
-                      }] : [])
-                    ]}
+                      safety_score: tourist.safety_score || 75,
+                      last_seen: tourist.last_location.timestamp
+                    }]}
+                    alerts={alert.location && (alert.location.lat || alert.location.latitude) ? [{
+                      id: alert.id,
+                      coordinates: {
+                        lat: alert.location.lat || alert.location.latitude,
+                        lon: alert.location.lon || alert.location.longitude
+                      },
+                      type: alert.type || 'alert',
+                      severity: alert.severity || 'medium',
+                      description: alert.description || 'Alert',
+                      timestamp: alert.timestamp || alert.created_at
+                    }] : []}
                   />
                 </div>
 

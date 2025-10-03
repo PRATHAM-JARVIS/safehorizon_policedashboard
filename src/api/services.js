@@ -221,6 +221,11 @@ export const alertsAPI = {
     return response.data;
   },
 
+  // Alias for resolveIncident - used in AlertDetail component
+  resolveIncident: async (alertId, notes = '') => {
+    return await alertsAPI.markAsResolved(alertId, notes);
+  },
+
   // Mark alert as unresolved (reopen) - Uses close endpoint with resolved=false
   markAsUnresolved: async (alertId, notes = '') => {
     const response = await apiClient.post('/api/incident/close', {

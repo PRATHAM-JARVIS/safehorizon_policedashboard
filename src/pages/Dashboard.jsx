@@ -312,19 +312,20 @@ const Dashboard = () => {
     }
   }, [realtimeAlerts]);
 
-  const StatCard = (props) => {
-    const { icon: Icon, title, value, color = "text-primary" } = props;
-    
+  const StatCard = ({ icon: _IconComponent, title, value, bgColor = "bg-blue-50", iconColor = "text-blue-600", textColor = "text-gray-900" }) => {
+    const Icon = _IconComponent;
     return (
-      <Card>
-        <CardContent className="p-6">
+      <Card className="border border-gray-200">
+        <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <Icon className={`h-5 w-5 ${color}`} />
-                <p className="text-sm font-medium text-muted-foreground">{title}</p>
+                <div className={`p-2 rounded ${bgColor}`}>
+                  <Icon className={`h-4 w-4 ${iconColor}`} />
+                </div>
+                <p className="text-sm font-medium text-gray-600">{title}</p>
               </div>
-              <p className={`text-2xl font-bold ${color}`}>
+              <p className={`text-2xl font-semibold ${textColor}`}>
                 {loading ? '...' : typeof value === 'number' ? value.toLocaleString() : value}
               </p>
             </div>
@@ -355,10 +356,29 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Simple Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">Real-time monitoring of tourist safety</p>
+      {/* Simple Professional Header */}
+      <div className="border-b border-gray-200 pb-4">
+        <h1 className="text-2xl font-semibold text-gray-900">Police Dashboard</h1>
+        <p className="text-gray-600 mt-1">Monitor tourist safety and respond to alerts</p>
+        <div className="flex items-center space-x-2 mt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowHeatmap(!showHeatmap)}
+            className={showHeatmap ? 'bg-primary text-white' : ''}
+          >
+            <Activity className="h-4 w-4 mr-2" />
+            {showHeatmap ? 'Hide' : 'Show'} Heatmap
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Error State */}
@@ -394,25 +414,29 @@ const Dashboard = () => {
             icon={Users}
             title="Active Tourists"
             value={stats.activeTourists}
-            color="text-blue-600"
+            bgColor="bg-blue-50"
+            iconColor="text-blue-600"
           />
           <StatCard
             icon={AlertTriangle}
             title="Alerts Today"
             value={stats.alertsToday}
-            color="text-amber-600"
+            bgColor="bg-orange-50"
+            iconColor="text-orange-600"
           />
           <StatCard
             icon={Phone}
             title="SOS Alerts"
             value={stats.sosCount}
-            color="text-red-600"
+            bgColor="bg-red-50"
+            iconColor="text-red-600"
           />
           <StatCard
             icon={Route}
             title="Active Trips"
             value={stats.tripsInProgress}
-            color="text-green-600"
+            bgColor="bg-green-50"
+            iconColor="text-green-600"
           />
         </div>
       )}

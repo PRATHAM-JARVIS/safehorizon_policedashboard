@@ -39,7 +39,6 @@ const Alerts = () => {
         setFilteredAlerts(alertsList);
       } catch (error) {
         console.error('Failed to fetch alerts:', error);
-        // Show error state
         setAlerts([]);
         setFilteredAlerts([]);
       } finally {
@@ -48,10 +47,7 @@ const Alerts = () => {
     };
 
     fetchAlerts();
-    
-    // Set up periodic refresh for alerts (every 10 seconds for real-time monitoring)
     const refreshInterval = setInterval(fetchAlerts, 10000);
-    
     return () => clearInterval(refreshInterval);
   }, []);
 
@@ -104,77 +100,38 @@ const Alerts = () => {
 
   const handleAcknowledge = async (alertId) => {
     try {
-      await alertsAPI.acknowledgeIncident(alertId, 'Alert acknowledged from dashboard');
-      
+      await alertsAPI.acknowledgeIncident(alertId, 'Alert acknowledged by officer');
       setAlerts(prev => prev.map(alert => 
         alert.id === alertId 
-          ? { ...alert, is_acknowledged: true }
+          ? { ...alert, is_acknowledged: true, acknowledged_at: new Date().toISOString() }
           : alert
       ));
     } catch (error) {
       console.error('Failed to acknowledge alert:', error);
-      alert('Failed to acknowledge alert. Please try again.');
     }
   };
 
-  const handleResolve = async (alertId, currentResolvedStatus) => {
+  const handleResolve = async (alertId) => {
     try {
-      const newStatus = !currentResolvedStatus;
-      const action = newStatus ? 'resolved' : 'reopened';
-      
-      await alertsAPI.toggleResolvedStatus(
-        alertId, 
-        currentResolvedStatus, 
-        `Incident ${action} from dashboard`
-      );
-      
+      await alertsAPI.closeIncident(alertId, 'Incident resolved by officer');
       setAlerts(prev => prev.map(alert => 
         alert.id === alertId 
-          ? { ...alert, is_resolved: newStatus, resolved: newStatus }
+          ? { ...alert, is_resolved: true, resolved_at: new Date().toISOString() }
           : alert
       ));
-      
-      alert(`Alert ${action} successfully!`);
     } catch (error) {
-      console.error('Failed to update alert status:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
-      alert(`Failed to update alert status: ${errorMsg}. Please try again.`);
+      console.error('Failed to resolve alert:', error);
     }
   };
 
-  const handleGenerateEFIR = async (alert) => {
+  const handleGenerateEFIR = async (alertId) => {
     try {
-      const efirData = {
-        alert_id: alert.id,
-        tourist_id: alert.tourist_id,
-        incident_type: alert.type || 'general',
-        description: alert.description || `${alert.type} alert at ${alert.location?.address || 'unknown location'}`,
-        location: alert.location ? {
-          latitude: alert.location.lat || alert.location.latitude,
-          longitude: alert.location.lon || alert.location.longitude
-        } : null,
-        witnesses: [],
-        evidence: []
-      };
-      
-      const efir = await efirAPI.generateEFIR(efirData);
-      window.alert('E-FIR generated successfully! ID: ' + (efir.efir_id || efir.id));
+      await efirAPI.generateEFIR(alertId, 'E-FIR generated from alert');
+      alert('E-FIR generated successfully!');
     } catch (error) {
       console.error('Failed to generate E-FIR:', error);
-      window.alert('Failed to generate E-FIR. Please try again.');
+      alert('Failed to generate E-FIR. Please try again.');
     }
-  };
-
-  const getStatusLabel = (alert) => {
-    if (alert.is_resolved) return 'Resolved';
-    if (alert.is_acknowledged) return 'Acknowledged';
-    return 'Pending';
-  };
-
-  const getStatusColor = (alert) => {
-    if (alert.is_resolved) return 'success';
-    if (alert.is_acknowledged) return 'warning';
-    return 'destructive';
   };
 
   if (loading) {
@@ -187,85 +144,86 @@ const Alerts = () => {
 
   return (
     <div className="space-y-6">
-      {/* Simple Header */}
-      <div>
-        <h1 className="text-3xl font-bold mb-6">Alerts Management</h1>
-        
-        {/* Compact Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="border-l-4 border-l-red-500">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-3">
-                <div className="bg-red-100 dark:bg-red-900 p-3 rounded-lg">
-                  <AlertTriangle className="w-5 h-5 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Critical</p>
-                  <p className="text-2xl font-bold text-red-600">
-                    {alerts.filter(a => a.severity === 'critical' && !a.is_resolved).length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="border-l-4 border-l-orange-500">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-3">
-                <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-lg">
-                  <Activity className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">High</p>
-                  <p className="text-2xl font-bold text-orange-600">
-                    {alerts.filter(a => a.severity === 'high' && !a.is_resolved).length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-yellow-500">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-3">
-                <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-lg">
-                  <Clock className="w-5 h-5 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Pending</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {alerts.filter(a => !a.is_acknowledged && !a.is_resolved).length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-green-500">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-3">
-                <div className="bg-green-100 dark:bg-green-900 p-3 rounded-lg">
-                  <Check className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Resolved</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {alerts.filter(a => a.is_resolved).length}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Simple Professional Header */}
+      <div className="border-b border-gray-200 pb-4">
+        <h1 className="text-2xl font-semibold text-gray-900">Alert Management</h1>
+        <p className="text-gray-600 mt-1">Monitor and respond to tourist safety alerts</p>
       </div>
 
-      {/* Simple Filters */}
-      <Card>
+      {/* Alert Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="bg-red-50 p-2 rounded">
+                <AlertTriangle className="w-4 h-4 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Critical</p>
+                <p className="text-xl font-semibold text-red-600">
+                  {alerts.filter(a => a.severity === 'critical' && !a.is_resolved).length}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="bg-orange-50 p-2 rounded">
+                <Activity className="w-4 h-4 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium">High</p>
+                <p className="text-xl font-semibold text-orange-600">
+                  {alerts.filter(a => a.severity === 'high' && !a.is_resolved).length}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="bg-blue-50 p-2 rounded">
+                <Clock className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Pending</p>
+                <p className="text-xl font-semibold text-blue-600">
+                  {alerts.filter(a => !a.is_resolved).length}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="bg-green-50 p-2 rounded">
+                <Check className="w-4 h-4 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium">Resolved</p>
+                <p className="text-xl font-semibold text-green-600">
+                  {alerts.filter(a => a.is_resolved).length}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card className="border border-gray-200">
         <CardContent className="p-4">
-          <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
                   placeholder="Search alerts..."
                   value={searchTerm}
@@ -274,137 +232,132 @@ const Alerts = () => {
                 />
               </div>
             </div>
-            <select
-              value={filterSeverity}
-              onChange={(e) => setFilterSeverity(e.target.value)}
-              className="border border-input bg-background rounded-md px-4 py-2 text-sm min-w-[150px]"
-            >
-              <option value="all">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="border border-input bg-background rounded-md px-4 py-2 text-sm min-w-[150px]"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="acknowledged">Acknowledged</option>
-              <option value="resolved">Resolved</option>
-            </select>
+            <div className="flex gap-2">
+              <select
+                value={filterSeverity}
+                onChange={(e) => setFilterSeverity(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+              >
+                <option value="all">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="acknowledged">Acknowledged</option>
+                <option value="resolved">Resolved</option>
+              </select>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Simplified Alerts Table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent Alerts</CardTitle>
-          <Badge variant="outline">{filteredAlerts.length} alerts</Badge>
+      {/* Alerts Table */}
+      <Card className="border border-gray-200">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">Recent Alerts ({filteredAlerts.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {filteredAlerts.length === 0 ? (
-            <div className="text-center py-12">
-              <AlertTriangle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No alerts found</h3>
-              <p className="text-muted-foreground">
-                {searchTerm || filterSeverity !== 'all' || filterStatus !== 'all'
-                  ? 'Try adjusting your search or filters'
-                  : 'No alerts generated yet'
-                }
-              </p>
+            <div className="text-center py-8">
+              <AlertTriangle className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No alerts found</h3>
+              <p className="mt-1 text-sm text-gray-500">No alerts match your current filters.</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Type</TableHead>
                   <TableHead>Tourist</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Severity</TableHead>
-                  <TableHead>Description</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Time</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredAlerts.map((alert) => {
-                  const TypeIcon = getTypeIcon(alert.type || alert.alert_type);
-                  
+                  const TypeIcon = getTypeIcon(alert.type);
                   return (
-                    <TableRow 
-                      key={alert.id}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => navigate(`/alerts/${alert.id}`)}
-                    >
+                    <TableRow key={alert.id}>
                       <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <TypeIcon className="w-4 h-4 text-muted-foreground" />
-                          <span className="capitalize font-medium">{alert.type || alert.alert_type}</span>
+                        <div>
+                          <div className="font-medium">{alert.tourist_name || 'Unknown'}</div>
+                          <div className="text-sm text-gray-500">{alert.tourist_email}</div>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">
-                        {alert.tourist?.name || alert.tourist_name || 'Unknown'}
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <TypeIcon className="h-4 w-4" />
+                          <span className="capitalize">{alert.type}</span>
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getSeverityColor(alert.severity)} className="capitalize">
+                        <Badge variant={getSeverityColor(alert.severity)}>
                           {alert.severity}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-xs truncate text-muted-foreground">
-                        {alert.description || alert.title || 'No description'}
+                      <TableCell>
+                        <div className="text-sm">
+                          {alert.location || 'Unknown'}
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusColor(alert)}>
-                          {getStatusLabel(alert)}
-                        </Badge>
+                        {alert.is_resolved ? (
+                          <Badge variant="success">Resolved</Badge>
+                        ) : alert.is_acknowledged ? (
+                          <Badge variant="warning">Acknowledged</Badge>
+                        ) : (
+                          <Badge variant="destructive">Pending</Badge>
+                        )}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(alert.created_at).toLocaleString()}
+                      <TableCell>
+                        <div className="text-sm">
+                          {new Date(alert.created_at || alert.timestamp).toLocaleString()}
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-1" onClick={(e) => e.stopPropagation()}>
+                      <TableCell>
+                        <div className="flex space-x-1">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => navigate(`/alerts/${alert.id}`)}
-                            title="View Details"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="h-3 w-3" />
                           </Button>
-                          
                           {!alert.is_acknowledged && !alert.is_resolved && (
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => handleAcknowledge(alert.id)}
-                              title="Acknowledge"
                             >
-                              <Check className="w-4 h-4" />
+                              <Check className="h-3 w-3" />
                             </Button>
                           )}
-                          
                           {alert.is_acknowledged && !alert.is_resolved && (
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => handleResolve(alert.id)}
-                              title="Resolve"
                             >
-                              <X className="w-4 h-4" />
+                              <X className="h-3 w-3" />
                             </Button>
                           )}
-                          
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => handleGenerateEFIR(alert)}
-                            title="Generate E-FIR"
+                            onClick={() => handleGenerateEFIR(alert.id)}
                           >
-                            <FileText className="w-4 h-4" />
+                            <FileText className="h-3 w-3" />
                           </Button>
                         </div>
                       </TableCell>

@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card.
 import { Button } from '../components/ui/button.jsx';
 import { Input, Label } from '../components/ui/input.jsx';
 import { useAuth } from '../hooks/useAuth.js';
-import { Shield, Lock } from 'lucide-react';
+import { Shield, LogIn } from 'lucide-react';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -38,40 +38,51 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Enhanced Login Card */}
-        <Card className="shadow-2xl border-border/50 backdrop-blur-sm bg-card/95">
-          <CardHeader className="text-center pb-8 pt-8">
-            <div className="flex justify-center mb-6">
-              <div className="bg-gradient-to-br from-primary to-primary/80 p-4 rounded-2xl shadow-lg">
-                <Shield className="h-10 w-10 text-primary-foreground" />
-              </div>
+        {/* Government Header */}
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <div className="bg-primary p-3 rounded-full">
+              <Shield className="h-8 w-8 text-white" />
             </div>
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text mb-2">
-              SafeHorizon Authority
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">SafeHorizon</h1>
+          <p className="text-lg text-gray-700 font-medium">Police Dashboard</p>
+          <p className="text-sm text-gray-600 mt-2">Government of India</p>
+        </div>
+
+        {/* Simple Login Form */}
+        <Card className="shadow border border-gray-200">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-xl font-semibold text-gray-900">
+              Officer Login
             </CardTitle>
-            <p className="text-muted-foreground text-base">Sign in to access the police dashboard</p>
+            <p className="text-gray-600 text-sm">Enter your credentials to access the system</p>
           </CardHeader>
-          <CardContent className="px-8 pb-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-3">
-                <Label htmlFor="email" className="text-base">Email Address</Label>
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                  Email Address
+                </Label>
                 <Input
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="officer@police.com"
+                  placeholder="officer@police.gov.in"
                   value={formData.email}
                   onChange={handleChange}
                   required
                   disabled={isLoading}
-                  className="text-base"
+                  className="mt-1"
                 />
               </div>
               
-              <div className="space-y-3">
-                <Label htmlFor="password" className="text-base">Password</Label>
+              <div>
+                <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  Password
+                </Label>
                 <Input
                   id="password"
                   name="password"
@@ -81,40 +92,52 @@ const Login = () => {
                   onChange={handleChange}
                   required
                   disabled={isLoading}
-                  className="text-base"
+                  className="mt-1"
                 />
               </div>
 
               {error && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm p-4 rounded-lg">
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded">
                   <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 bg-destructive rounded-full flex-shrink-0"></div>
-                    <span className="font-medium">{error}</span>
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                    <span>{error}</span>
                   </div>
                 </div>
               )}
 
               <Button
                 type="submit"
-                className="w-full h-12 text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2"
                 disabled={isLoading}
               >
                 {isLoading ? (
-                  <div className="flex items-center space-x-3">
-                    <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></div>
-                    <span>Signing in...</span>
+                  <div className="flex items-center justify-center">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Signing in...
                   </div>
                 ) : (
-                  <div className="flex items-center space-x-3">
-                    <Lock className="h-5 w-5" />
-                    <span>Sign In</span>
+                  <div className="flex items-center justify-center">
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Sign In
                   </div>
                 )}
               </Button>
             </form>
 
-            <div className="mt-8 text-center">
-              <p className="text-sm text-muted-foreground">Authorized personnel only</p>
+            {/* Demo Credentials */}
+            <div className="mt-6 p-4 bg-gray-50 rounded border">
+              <p className="text-xs font-medium text-gray-700 mb-2">Demo Credentials:</p>
+              <div className="space-y-1 text-xs text-gray-600">
+                <p><strong>Email:</strong> officer@gmail.com</p>
+                <p><strong>Password:</strong> 123456</p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-6 text-center">
+              <p className="text-xs text-gray-500">
+                Authorized personnel only • Government of India
+              </p>
             </div>
           </CardContent>
         </Card>
