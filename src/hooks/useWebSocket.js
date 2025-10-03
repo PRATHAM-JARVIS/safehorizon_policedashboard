@@ -20,7 +20,7 @@ const WS_CLOSE_CODES = {
   SERVICE_RESTART: 1012
 };
 
-export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
+export const useWebSocket = (_channel = 'authority-alerts', options = {}) => {
   const [socket, setSocket] = useState(null);
   const [lastMessage, setLastMessage] = useState(null);
   const [readyState, setReadyState] = useState(WS_STATES.CLOSED);
@@ -48,10 +48,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
         throw new Error('No authentication token found');
       }
 
-      console.log('🔍 [WebSocket] Building WebSocket URL...');
-      console.log('🔍 [WebSocket] Token exists:', token ? 'Yes' : 'No');
-      console.log('🔍 [WebSocket] Token length:', token?.length);
-
       // Get base URL and handle protocol switching
       const baseWsUrl = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -61,17 +57,12 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
       
       const wsUrl = `${protocol}//${host}/api/alerts/subscribe?token=${encodeURIComponent(token)}`;
       
-      console.log(`🔗 [WebSocket] URL constructed for channel: ${channel}`);
-      console.log(`🔗 [WebSocket] Full URL: ${wsUrl.split('?')[0]}?token=***`);
-      console.log(`🔗 [WebSocket] Protocol: ${protocol}`);
-      console.log(`🔗 [WebSocket] Host: ${host}`);
-      
       return wsUrl;
     } catch (err) {
       console.error('❌ [WebSocket] Failed to build WebSocket URL:', err);
       throw err;
     }
-  }, [channel]);
+  }, []);
 
   // Validate authentication token
   const validateToken = useCallback(() => {
@@ -98,10 +89,8 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
           return false;
         }
 
-        console.log('✅ Token validation passed');
         return true;
       } catch {
-        console.warn('⚠️ Could not decode token payload, proceeding anyway');
         return true; // Proceed if we can't decode but token exists
       }
     } catch (err) {
@@ -118,14 +107,12 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
 
     heartbeatIntervalRef.current = setInterval(() => {
       if (ws.readyState === WS_STATES.OPEN) {
-        console.log('💗 Sending heartbeat ping');
         ws.send('ping');
         
         // Set timeout to check for pong response
         setTimeout(() => {
           const timeSinceLastPong = Date.now() - lastPongRef.current;
           if (timeSinceLastPong > heartbeatTimeout) {
-            console.warn('⚠️ Heartbeat timeout, closing connection');
             ws.close(WS_CLOSE_CODES.ABNORMAL_CLOSURE, 'Heartbeat timeout');
           }
         }, heartbeatTimeout);
@@ -157,8 +144,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
     reconnectAttemptsRef.current++;
     setConnectionAttempts(reconnectAttemptsRef.current);
 
-    console.log(`🔄 Scheduling reconnection attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts} in ${backoffDelay}ms`);
-
     reconnectTimeoutRef.current = setTimeout(() => {
       // Use ref to call connect to avoid circular dependency
       connectRef.current?.();
@@ -170,7 +155,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
     try {
       // Prevent multiple simultaneous connection attempts
       if (isConnectingRef.current) {
-        console.log('⚠️ Connection already in progress, skipping');
         return;
       }
 
@@ -188,7 +172,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
       }
 
       const wsUrl = buildWebSocketUrl();
-      console.log(`🔌 Connecting to WebSocket: ${wsUrl.split('?')[0]}...`);
       
       isConnectingRef.current = true;
       setReadyState(WS_STATES.CONNECTING);
@@ -197,7 +180,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = (event) => {
-        console.log('✅ WebSocket connected successfully');
         isConnectingRef.current = false;
         setReadyState(WS_STATES.OPEN);
         setError(null);
@@ -216,7 +198,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
         try {
           // Handle heartbeat response
           if (event.data === 'pong') {
-            console.log('💗 Heartbeat pong received');
             lastPongRef.current = Date.now();
             return;
           }
@@ -226,11 +207,9 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
           try {
             data = JSON.parse(event.data);
           } catch {
-            console.warn('⚠️ Received non-JSON message:', event.data);
             data = event.data;
           }
           
-          console.log('📨 Message received:', data);
           setLastMessage(data);
           options.onMessage?.(data);
           
@@ -241,7 +220,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
       };
 
       ws.onclose = (event) => {
-        console.log(`🔌 WebSocket closed: Code ${event.code}, Reason: ${event.reason || 'Unknown'}`);
         isConnectingRef.current = false;
         setReadyState(WS_STATES.CLOSED);
         stopHeartbeat();
@@ -249,7 +227,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
         // Handle different close codes
         switch (event.code) {
           case WS_CLOSE_CODES.NORMAL_CLOSURE:
-            console.log('ℹ️ Normal closure, no reconnection needed');
             setError(null);
             break;
             
@@ -261,13 +238,11 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
             
           case WS_CLOSE_CODES.SERVICE_RESTART:
           case WS_CLOSE_CODES.ABNORMAL_CLOSURE:
-            console.warn('⚠️ Server restart or abnormal closure, will reconnect');
             scheduleReconnect();
             break;
             
           default:
             if (!event.wasClean) {
-              console.warn('⚠️ Unexpected disconnection, will reconnect');
               scheduleReconnect();
             }
         }
@@ -299,8 +274,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
 
   // Disconnect function
   const disconnect = useCallback((reason = 'Disconnected by user') => {
-    console.log('🔌 Disconnecting WebSocket:', reason);
-    
     // Clear connecting flag
     isConnectingRef.current = false;
     
@@ -327,14 +300,12 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
   // Send message function with validation
   const sendMessage = useCallback((message) => {
     if (!socket || socket.readyState !== WS_STATES.OPEN) {
-      console.warn('⚠️ Cannot send message: WebSocket not connected');
       return false;
     }
 
     try {
       const messageString = typeof message === 'string' ? message : JSON.stringify(message);
       socket.send(messageString);
-      console.log('📤 Message sent:', messageString);
       return true;
     } catch (err) {
       console.error('❌ Failed to send message:', err);
@@ -345,7 +316,6 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
 
   // Force reconnect function
   const forceReconnect = useCallback(() => {
-    console.log('🔄 Force reconnecting WebSocket');
     reconnectAttemptsRef.current = 0;
     setConnectionAttempts(0);
     
@@ -381,16 +351,12 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
     let isMounted = true;
     
     if (options.autoConnect === true && isMounted) {
-      console.log('🔌 Auto-connecting WebSocket...');
       connect();
-    } else {
-      console.log('ℹ️ Auto-connect disabled, call connect() manually');
     }
 
     // Cleanup function - only disconnect if component is actually unmounting
     return () => {
       isMounted = false;
-      console.log('🧹 Cleaning up WebSocket connection');
       disconnect('Component unmounting');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -402,11 +368,9 @@ export const useWebSocket = (channel = 'authority-alerts', options = {}) => {
       if (event.key === 'safehorizon_auth_token') {
         if (!event.newValue) {
           // Token removed, disconnect
-          console.log('🔐 Auth token removed, disconnecting WebSocket');
           disconnect('Auth token removed');
         } else if (event.oldValue && event.newValue !== event.oldValue) {
           // Token actually changed (not just set initially), reconnect
-          console.log('🔐 Auth token changed, reconnecting WebSocket');
           if (socket && socket.readyState === WS_STATES.OPEN) {
             forceReconnect();
           }

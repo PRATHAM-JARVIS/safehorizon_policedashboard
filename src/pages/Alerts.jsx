@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button.jsx';
 import { Input } from '../components/ui/input.jsx';
 import { Badge } from '../components/ui/badge.jsx';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/Table.jsx';
-import { alertsAPI, efirAPI } from '../api/services.js';
+import { touristAPI, alertsAPI, efirAPI } from '../api/services.js';
 import AlertDetailModal from '../components/ui/AlertDetailModal.jsx';
 import {
   AlertTriangle,
@@ -124,19 +124,29 @@ const Alerts = () => {
     }
   };
 
-  const handleResolve = async (alertId) => {
+  const handleResolve = async (alertId, currentResolvedStatus) => {
     try {
-      // Use the correct closeIncident endpoint with proper parameters (alert_id, resolution_notes)
-      await alertsAPI.closeIncident(alertId, 'Incident resolved from dashboard');
+      const newStatus = !currentResolvedStatus;
+      const action = newStatus ? 'resolved' : 'reopened';
+      
+      // Use the toggle method which handles both resolve and unresolve
+      await alertsAPI.toggleResolvedStatus(
+        alertId, 
+        currentResolvedStatus, 
+        `Incident ${action} from dashboard`
+      );
       
       setAlerts(prev => prev.map(alert => 
         alert.id === alertId 
-          ? { ...alert, is_resolved: true }
+          ? { ...alert, is_resolved: newStatus, resolved: newStatus }
           : alert
       ));
+      
+      alert(`Alert ${action} successfully!`);
     } catch (error) {
-      console.error('Failed to resolve alert:', error);
-      alert('Failed to resolve alert. Please try again.');
+      console.error('Failed to update alert status:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
+      alert(`Failed to update alert status: ${errorMsg}. Please try again.`);
     }
   };
 
@@ -424,7 +434,7 @@ const Alerts = () => {
           setSelectedAlert(null);
         }}
         onAcknowledge={handleAcknowledge}
-        onResolve={handleResolve}
+        onResolve={(alertId) => handleResolve(alertId, selectedAlert?.is_resolved || selectedAlert?.resolved)}
         onGenerateEFIR={handleGenerateEFIR}
       />
     </div>

@@ -18,7 +18,6 @@ export const EFIRDetailModal = ({ efir, isOpen, onClose }) => {
   if (!isOpen || !efir) return null;
 
   const handleExportPDF = () => {
-    console.log('Exporting E-FIR to PDF:', efir.efir_id);
     const locationStr = efir.location
       ? (efir.location.lat && efir.location.lon
           ? `${efir.location.lat}, ${efir.location.lon}`

@@ -211,6 +211,37 @@ export const alertsAPI = {
     return response.data;
   },
 
+  // Mark alert as resolved (alternative to closeIncident)
+  markAsResolved: async (alertId, notes = '') => {
+    const response = await apiClient.post('/api/incident/close', {
+      alert_id: alertId,
+      notes: notes || 'Marked as resolved',
+      resolved: true
+    });
+    return response.data;
+  },
+
+  // Mark alert as unresolved (reopen) - Uses close endpoint with resolved=false
+  markAsUnresolved: async (alertId, notes = '') => {
+    const response = await apiClient.post('/api/incident/close', {
+      alert_id: alertId,
+      notes: notes || 'Marked as unresolved - reopened',
+      resolved: false
+    });
+    return response.data;
+  },
+
+  // Toggle resolved status
+  toggleResolvedStatus: async (alertId, currentStatus, notes = '') => {
+    if (currentStatus) {
+      // Currently resolved, mark as unresolved
+      return await alertsAPI.markAsUnresolved(alertId, notes);
+    } else {
+      // Currently unresolved, mark as resolved
+      return await alertsAPI.markAsResolved(alertId, notes);
+    }
+  },
+
   // Get incident details
   getIncidentDetails: async (alertId) => {
     const response = await apiClient.get(`/incident/${alertId}`);
@@ -613,11 +644,28 @@ export const adminAPI = {
   },
 
   // Platform analytics and statistics
+  // Note: This endpoint may require special permissions or may not be available
   getPlatformStats: async (period = '30d') => {
-    const response = await apiClient.get('/api/analytics/dashboard', {
-      params: { period }
-    });
-    return response.data;
+    try {
+      const response = await apiClient.get('/api/analytics/dashboard', {
+        params: { period }
+      });
+      return response.data;
+    } catch (error) {
+      // Return empty data structure if endpoint is not available
+      if (error.response?.status === 403 || error.response?.status === 404) {
+        return {
+          total_tourists: 0,
+          active_tourists: 0,
+          total_alerts: 0,
+          resolved_alerts: 0,
+          total_trips: 0,
+          active_trips: 0,
+          message: 'Analytics data not available'
+        };
+      }
+      throw error;
+    }
   },
 
   getUserStats: async () => {

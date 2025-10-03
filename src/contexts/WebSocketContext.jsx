@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 
@@ -13,19 +14,10 @@ export const WebSocketProvider = ({ children }) => {
     activeTourists: 0
   });
 
-  console.log('🚀 [WebSocketProvider] Initializing WebSocket Provider...');
-  console.log('📊 [WebSocketProvider] Environment check:', {
-    API_URL: import.meta.env.VITE_API_BASE_URL,
-    WS_URL: import.meta.env.VITE_WS_BASE_URL,
-    AUTO_CONNECT: import.meta.env.VITE_WS_AUTO_CONNECT
-  });
-
   // Request notification permission on mount
   React.useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().then(permission => {
-        console.log('🔔 Notification permission:', permission);
-      });
+      Notification.requestPermission();
     }
   }, []);
 
@@ -61,19 +53,14 @@ export const WebSocketProvider = ({ children }) => {
     heartbeatTimeout: parseInt(import.meta.env.VITE_WS_HEARTBEAT_TIMEOUT) || 5000,
     autoConnect: import.meta.env.VITE_WS_AUTO_CONNECT === 'true',
     onConnect: () => {
-      console.log('✅ Global WebSocket connected - persists across navigation');
+      // WebSocket connected
     },
     onMessage: (data) => {
-      console.log('📨 Global alert received:', data);
-      console.log('🔍 Alert type:', data.type);
-      
       // Handle different message types
       if (data.type === 'alert' || data.type === 'new_alert') {
         const alertWithTimestamp = { ...data, timestamp: data.timestamp || new Date().toISOString() };
-        console.log('✅ Adding alert to realtimeAlerts:', alertWithTimestamp);
         setRealtimeAlerts(prev => {
           const newList = [alertWithTimestamp, ...prev.slice(0, 19)];
-          console.log('📊 Updated realtimeAlerts count:', newList.length);
           return newList;
         }); // Keep last 20 alerts
         setAlertStats(prev => ({
@@ -88,9 +75,9 @@ export const WebSocketProvider = ({ children }) => {
         try {
           const audio = new Audio('/alert-sound.mp3');
           audio.volume = 0.3;
-          audio.play().catch(() => console.log('Audio play failed'));
+          audio.play().catch(() => {});
         } catch {
-          console.log('Audio not available');
+          // Audio not available
         }
       } else if (data.type === 'sos' || data.type === 'emergency') {
         const alertWithTimestamp = { ...data, timestamp: data.timestamp || new Date().toISOString() };
@@ -107,9 +94,9 @@ export const WebSocketProvider = ({ children }) => {
         try {
           const audio = new Audio('/emergency-sound.mp3');
           audio.volume = 0.5;
-          audio.play().catch(() => console.log('Audio play failed'));
+          audio.play().catch(() => {});
         } catch {
-          console.log('Audio not available');
+          // Audio not available
         }
       } else if (data.type === 'tourist_update') {
         setAlertStats(prev => ({
@@ -124,8 +111,8 @@ export const WebSocketProvider = ({ children }) => {
         }));
       }
     },
-    onClose: (event) => {
-      console.log('🔌 Global WebSocket disconnected:', event.code);
+    onClose: (_event) => {
+      // WebSocket disconnected
     },
     onError: (error) => {
       console.error('❌ Global WebSocket error:', error);

@@ -49,7 +49,7 @@ const TouristDetail = () => {
             const response = await touristAPI.getTouristProfile(id);
             // Handle documented response structure: tourist property
             return response.tourist || response;
-          } catch (error) {
+          } catch {
             try {
               const fallback = await touristAPI.trackTourist(id);
               // Handle documented response structure: tourist property
@@ -66,7 +66,7 @@ const TouristDetail = () => {
             const response = await touristAPI.getCurrentLocation(id);
             // Handle documented response structure: location property
             return response.location || response;
-          } catch (error) {
+          } catch {
             return null;
           }
         };
@@ -79,7 +79,7 @@ const TouristDetail = () => {
             });
             // Handle documented response structure: locations property
             return response.locations || [];
-          } catch (error) {
+          } catch {
             return [];
           }
         };
@@ -89,7 +89,7 @@ const TouristDetail = () => {
             const response = await touristAPI.getTouristAlerts(id);
             // Handle documented response structure: direct array
             return Array.isArray(response) ? response : [];
-          } catch (error) {
+          } catch {
             return [];
           }
         };
@@ -389,7 +389,6 @@ const TouristDetail = () => {
             <CardContent className="p-0">
               {locationData ? (
                 <>
-                  {console.log('🗺️ Rendering Map with location:', locationData)}
                   <Map 
                     center={[locationData.lat, locationData.lon]}
                     zoom={15}
@@ -426,16 +425,6 @@ const TouristDetail = () => {
                     <MapPin className="w-12 h-12 mx-auto mb-2 opacity-30" />
                     <p className="font-medium">No location data available</p>
                     <p className="text-sm">Waiting for GPS coordinates...</p>
-                    {console.log('⚠️ No location data found:', {
-                      currentLocation,
-                      tourist: {
-                        id: tourist.id,
-                        current_location: tourist.current_location,
-                        last_location: tourist.last_location,
-                        location: tourist.location
-                      },
-                      recentLocations: recentLocations.slice(0, 2)
-                    })}
                   </div>
                 </div>
               )}

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { AlertTriangle, Phone, MapPin, Activity, X, CheckCircle, Info } from 'lucide-react';
 
@@ -14,6 +15,10 @@ export const useToast = () => {
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
+  const removeToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
   const addToast = useCallback((toast) => {
     const id = Date.now() + Math.random();
     const newToast = { ...toast, id };
@@ -28,11 +33,7 @@ export const ToastProvider = ({ children }) => {
     }
 
     return id;
-  }, []);
-
-  const removeToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  }, [removeToast]);
 
   const toast = useCallback((options) => {
     return addToast(options);

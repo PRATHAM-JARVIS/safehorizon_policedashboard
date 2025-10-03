@@ -37,7 +37,6 @@ apiClient.interceptors.request.use(
     }
     // Add request timestamp for debugging
     config.metadata = { startTime: new Date() };
-    console.log(`🔵 API Request: ${config.method?.toUpperCase()} ${config.url}`, config.params || '');
     return config;
   },
   (error) => {
@@ -49,34 +48,34 @@ apiClient.interceptors.request.use(
 // Response interceptor to handle auth errors and logging
 apiClient.interceptors.response.use(
   (response) => {
-    // Log successful responses
-    const duration = new Date() - response.config.metadata.startTime;
-    console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`, {
-      status: response.status,
-      dataType: Array.isArray(response.data) ? 'array' : typeof response.data,
-      dataSize: JSON.stringify(response.data).length
-    });
     return response;
   },
   (error) => {
     // Enhanced error logging
     const duration = error.config?.metadata ? new Date() - error.config.metadata.startTime : 0;
+    const status = error.response?.status;
     
-    console.error(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url} (${duration}ms)`, {
-      status: error.response?.status,
-      message: error.message,
-      data: error.response?.data,
-      url: error.config?.url
-    });
+    // Only log errors that aren't expected/handled (403, 404 on analytics can be expected)
+    const isExpectedError = (status === 403 || status === 404) && 
+                            (error.config?.url?.includes('/analytics') || 
+                             error.config?.url?.includes('/incident/reopen'));
+    
+    if (!isExpectedError) {
+      console.error(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url} (${duration}ms)`, {
+        status: status,
+        message: error.message,
+        data: error.response?.data,
+        url: error.config?.url
+      });
+    }
 
     // Handle different error types
-    if (error.response?.status === 401) {
-      console.warn('🔒 Unauthorized - Redirecting to login');
+    if (status === 401) {
       tokenManager.clearToken();
       window.location.href = '/login';
-    } else if (error.response?.status === 404) {
-      console.warn('🔍 Resource not found:', error.config?.url);
-    } else if (error.response?.status === 500) {
+    } else if (status === 404) {
+      // Resource not found
+    } else if (status === 500) {
       console.error('🔥 Server error:', error.response?.data);
     } else if (error.code === 'ERR_NETWORK') {
       console.error('🌐 Network error - Backend may be down or CORS issue');

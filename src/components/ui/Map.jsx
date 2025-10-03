@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polygon, Circle, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { MapPin, AlertTriangle, AlertCircle, Shield, Users } from 'lucide-react';
+import { MapPin, AlertTriangle, AlertCircle, Shield, Users, Activity } from 'lucide-react';
 import { Badge } from './badge.jsx';
 
 // Fix for default markers in React Leaflet
@@ -73,11 +73,8 @@ const sosIcon = createCustomIcon('#dc2626', '<circle cx="12" cy="12" r="10"/><li
 // Enhanced Circle-based Heatmap Component with better visibility
 const HeatmapCircles = ({ points, intensityKey = 'intensity' }) => {
   if (!points || points.length === 0) {
-    console.log('🗺️ Heatmap: No points to render');
     return null;
   }
-
-  console.log('� Heatmap: Rendering', points.length, 'heat points');
 
   return (
     <>
@@ -85,7 +82,6 @@ const HeatmapCircles = ({ points, intensityKey = 'intensity' }) => {
         const lat = point.lat || point.latitude;
         const lng = point.lng || point.lon || point.longitude;
         if (!lat || !lng) {
-          console.warn('🗺️ Heatmap: Invalid point at index', index, point);
           return null;
         }
 
@@ -310,7 +306,6 @@ export const MapComponent = ({
   // Separate high-risk tourists (safety_score < 50)
   const highRiskTourists = safeTourists.filter(t => (t.safety_score || 100) < 50);
   
-  console.log('🧭 Map Component - Tourists:', safeTourists.length, 'total,', highRiskTourists.length, 'high-risk');
   const safeAlerts = Array.isArray(alerts) ? alerts.filter(a => a && a.coordinates && a.coordinates.lat && a.coordinates.lon) : [];
   
   // Process zones - handle both polygon and circle-based zones
@@ -348,36 +343,11 @@ export const MapComponent = ({
       };
     }
     
-    console.warn('⚠️ Zone has invalid format:', {
-      id: z.id,
-      name: z.name,
-      hasCoordinates: !!z.coordinates,
-      hasCenter: !!z.center,
-      hasRadius: !!z.radius_meters
-    });
-    
     return null;
   }).filter(z => z !== null) : [];
   
   const polygonZones = processedZones.filter(z => z.type === 'polygon');
   const circleZones = processedZones.filter(z => z.type === 'circle');
-  
-  console.log('🗺️ Map Component - Zones:', {
-    totalZones: zones?.length || 0,
-    rawZonesData: zones,
-    processedZones: processedZones.length,
-    polygonZones: polygonZones.length,
-    circleZones: circleZones.length,
-    zonesData: processedZones.map(z => ({
-      id: z.id,
-      name: z.name,
-      type: z.type,
-      zone_type: z.zone_type,
-      coordinatesCount: z.coordinates?.length,
-      center: z.center,
-      radius: z.radius
-    }))
-  });
 
   const getZoneColor = (zoneType) => {
     switch (zoneType) {

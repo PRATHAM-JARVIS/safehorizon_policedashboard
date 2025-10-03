@@ -12,8 +12,6 @@ const AlertNotificationBridge = () => {
   const shownAlertIds = useRef(new Set());
 
   useEffect(() => {
-    console.log('🔔 AlertNotificationBridge: realtimeAlerts changed', realtimeAlerts.length);
-    
     // Check each alert in the realtime list
     if (realtimeAlerts.length > 0) {
       const latestAlert = realtimeAlerts[0];
@@ -21,7 +19,6 @@ const AlertNotificationBridge = () => {
       
       // Only show if we haven't shown this alert before
       if (!shownAlertIds.current.has(alertId)) {
-        console.log('🚨 Showing new alert notification:', latestAlert);
         toast.alert(latestAlert);
         shownAlertIds.current.add(alertId);
         

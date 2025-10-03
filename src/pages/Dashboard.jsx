@@ -289,8 +289,6 @@ const Dashboard = () => {
 
   // Real-time alert updates from WebSocket
   useEffect(() => {
-    console.log('📡 Dashboard: WebSocket realtimeAlerts updated', realtimeAlerts.length);
-    
     if (realtimeAlerts.length > 0) {
       // Merge WebSocket alerts with existing alerts (avoid duplicates)
       setRecentAlerts(prev => {
@@ -300,7 +298,6 @@ const Dashboard = () => {
         );
         
         if (newAlerts.length > 0) {
-          console.log('✅ Dashboard: Adding', newAlerts.length, 'new alerts to list');
           return [...newAlerts, ...prev];
         }
         return prev;
@@ -637,25 +634,6 @@ const Dashboard = () => {
           }
         }}
       />
-
-      {/* Debug Panel - Remove after testing */}
-      {import.meta.env.DEV && (
-        <div className="fixed bottom-4 left-4 bg-black/90 text-white p-4 rounded-lg text-xs font-mono z-50 max-w-xs">
-          <div className="font-bold mb-2 text-green-400">🔍 Real-Time Debug</div>
-          <div className="space-y-1">
-            <div>WebSocket Alerts: <span className="text-yellow-400">{realtimeAlerts.length}</span></div>
-            <div>Recent Alerts: <span className="text-blue-400">{recentAlerts.length}</span></div>
-            <div>Stats Today: <span className="text-purple-400">{stats.alertsToday}</span></div>
-            <div>Last Render: <span className="text-gray-400">{new Date().toLocaleTimeString()}</span></div>
-            {realtimeAlerts.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-gray-600">
-                <div className="text-green-400">Latest Alert:</div>
-                <div className="text-xs truncate">{realtimeAlerts[0]?.title || realtimeAlerts[0]?.type}</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

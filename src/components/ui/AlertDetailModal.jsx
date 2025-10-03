@@ -18,7 +18,6 @@ export const AlertDetailModal = ({ alert, isOpen, onClose, onAcknowledge, onReso
   if (!isOpen || !alert) return null;
 
   const handleAcknowledge = async () => {
-    console.log('Acknowledging alert:', alert.id);
     if (onAcknowledge) {
       await onAcknowledge(alert.id);
     }
@@ -26,7 +25,6 @@ export const AlertDetailModal = ({ alert, isOpen, onClose, onAcknowledge, onReso
   };
 
   const handleResolve = async () => {
-    console.log('Resolving alert:', alert.id);
     if (onResolve) {
       await onResolve(alert.id);
     }
@@ -34,7 +32,6 @@ export const AlertDetailModal = ({ alert, isOpen, onClose, onAcknowledge, onReso
   };
 
   const handleGenerateEFIR = () => {
-    console.log('Generating E-FIR for alert:', alert.id);
     if (onGenerateEFIR) {
       onGenerateEFIR(alert);
     }
@@ -212,10 +209,13 @@ export const AlertDetailModal = ({ alert, isOpen, onClose, onAcknowledge, onReso
                     Acknowledge
                   </Button>
                 )}
-                {alert.is_acknowledged && !alert.is_resolved && (
-                  <Button onClick={handleResolve}>
+                {alert.is_acknowledged && (
+                  <Button 
+                    onClick={handleResolve}
+                    variant={alert.is_resolved || alert.resolved ? "outline" : "default"}
+                  >
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    Mark as Resolved
+                    {alert.is_resolved || alert.resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}
                   </Button>
                 )}
                 <Button onClick={handleGenerateEFIR} variant="outline">
